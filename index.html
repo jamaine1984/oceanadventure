@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#082033" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <title>Ocean Adventure</title>
+  </head>
+  <body>
+    <main id="game-root" aria-label="Ocean Adventure">
+      <div id="canvas-host"></div>
+      <div class="loading" data-loading>
+        <span class="loading__bar"></span>
+        <strong>Charting the ocean</strong>
+      </div>
+      <section class="hud" aria-label="Voyage status">
+        <div class="hud__mission">
+          <span class="hud__eyebrow">Voyage</span>
+          <strong data-objective>Reach the first signal buoy</strong>
+          <span data-npc>Mara is scanning the horizon.</span>
+        </div>
+        <div class="hud__strip">
+          <span><b data-speed>0</b> kt</span>
+          <span data-heading>N</span>
+          <span>Wind <b data-wind>12</b> kt</span>
+          <span><b data-fps>60</b> fps</span>
+          <span><b data-progress>0</b>/5 signals</span>
+        </div>
+      </section>
+      <button class="music-toggle" type="button" data-music-toggle>Music off</button>
+      <div class="notice" data-notice>W/S throttle and reverse • A/D turn • Shift boost • C camera • R reset • M music</div>
+      <div class="touch-controls" aria-label="Touch controls">
+        <button type="button" data-hold="ArrowUp">FWD</button>
+        <button type="button" data-hold="ArrowLeft">L</button>
+        <button type="button" data-hold="ArrowRight">R</button>
+        <button type="button" data-hold="ShiftLeft">BOOST</button>
+        <button type="button" data-hold="ArrowDown">REV</button>
+      </div>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
