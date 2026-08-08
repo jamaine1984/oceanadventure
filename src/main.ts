@@ -6,7 +6,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { Sky } from 'three/examples/jsm/objects/Sky.js';
 import { Water } from 'three/examples/jsm/objects/Water.js';
 import { WEATHER_PRESETS, cloneSeaState, dampSeaState, type WeatherKey } from './sea-config';
-import { UPGRADE_CATALOG, loadProgress, saveProgress, upgradeCost, type UpgradeKey } from './progression';
+import { UPGRADE_CATALOG, defaultProgress, loadProgress, saveProgress, upgradeCost, type UpgradeKey } from './progression';
 
 type KeyMap = Record<string, boolean>;
 type PlayerMode = 'helm' | 'swim';
@@ -385,6 +385,11 @@ class OceanMusic {
 }
 
 async function initialize() {
+  const qaMode = location.hostname === 'localhost' ? new URLSearchParams(location.search).get('qa') : null;
+  if (qaMode === 'reset') {
+    Object.assign(progress, defaultProgress());
+    saveProgress(progress);
+  }
   await RAPIER.init();
   physicsWorld = new RAPIER.World({ x: 0, y: 0, z: 0 });
   physicsWorld.timestep = 1 / 60;
@@ -399,7 +404,7 @@ async function initialize() {
   selectWeather('bluewater', false);
   updateHud();
 
-  if (location.hostname === 'localhost' && new URLSearchParams(location.search).get('qa') === 'harbor') {
+  if (qaMode === 'harbor') {
     progress.credits = Math.max(progress.credits, EXPEDITION_REWARD);
     rewardGranted = true;
     expeditionComplete = true;
