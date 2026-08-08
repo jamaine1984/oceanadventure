@@ -6,7 +6,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { Sky } from 'three/examples/jsm/objects/Sky.js';
 import { Water } from 'three/examples/jsm/objects/Water.js';
 import { WEATHER_PRESETS, cloneSeaState, dampSeaState, type WeatherKey } from './sea-config';
-import { UPGRADE_CATALOG, defaultProgress, loadProgress, saveProgress, upgradeCost, type UpgradeKey } from './progression';
+import { BOAT_CATALOG, UPGRADE_CATALOG, defaultProgress, loadProgress, saveProgress, upgradeCost, type BoatKey, type UpgradeKey } from './progression';
 
 type KeyMap = Record<string, boolean>;
 type PlayerMode = 'helm' | 'swim';
@@ -62,6 +62,7 @@ const harborCredits = document.querySelector<HTMLElement>('[data-harbor-credits]
 const rewardText = document.querySelector<HTMLElement>('[data-reward]');
 const expeditionsText = document.querySelector<HTMLElement>('[data-expeditions]');
 const upgradeList = document.querySelector<HTMLElement>('[data-upgrade-list]');
+const fleetList = document.querySelector<HTMLElement>('[data-fleet-list]');
 const nextExpeditionButton = document.querySelector<HTMLButtonElement>('[data-next-expedition]');
 const contractTitle = document.querySelector<HTMLElement>('[data-contract-title]');
 const pauseToggle = document.querySelector<HTMLButtonElement>('[data-pause-toggle]');
@@ -428,8 +429,8 @@ async function initialize() {
   selectWeather(expeditionContracts[activeContractIndex].weather, false);
   updateHud();
 
-  if (qaMode === 'harbor') {
-    progress.credits = Math.max(progress.credits, expeditionContracts[activeContractIndex].reward);
+  if (qaMode === 'harbor' || qaMode === 'fleet') {
+    progress.credits = Math.max(progress.credits, qaMode === 'fleet' ? 2500 : expeditionContracts[activeContractIndex].reward);
     rewardGranted = true;
     expeditionComplete = true;
     renderHarbor();
@@ -654,10 +655,16 @@ async function createYacht() {
   yacht.name = 'player_yacht';
   scene.add(yacht);
 
+  await loadActiveYacht();
+}
+
+async function loadActiveYacht() {
   const loader = new GLTFLoader();
-  const gltf = await loader.loadAsync('/models/aurora_explorer_yacht.glb');
-  yachtVisual = gltf.scene;
-  yachtVisual.name = 'blender_aurora_explorer_yacht';
+  const gltf = await loader.loadAsync(BOAT_CATALOG[progress.activeBoat].model);
+  const nextVisual = gltf.scene;
+  nextVisual.name = `blender_${progress.activeBoat}_yacht`;
+  if (yachtVisual) yacht.remove(yachtVisual);
+  yachtVisual = nextVisual;
   yachtVisual.traverse((node) => {
     if (node instanceof THREE.Mesh) {
       node.castShadow = true;
@@ -668,6 +675,7 @@ async function createYacht() {
     }
   });
   yachtVisual.rotation.y = Math.PI;
+  if (progress.activeBoat === 'voyager') yachtVisual.scale.setScalar(1.08);
   yacht.add(yachtVisual);
 }
 
@@ -1359,7 +1367,8 @@ function updateBoat(delta: number) {
   steerValue = THREE.MathUtils.damp(steerValue, rawSteer, 8.5, delta);
 
   const engineMultiplier = 1 + progress.upgrades.engine * 0.08;
-  const targetAcceleration = (boosting ? 25 : 18) * engineMultiplier;
+  const boatStats = BOAT_CATALOG[progress.activeBoat];
+  const targetAcceleration = (boosting ? 25 : 18) * engineMultiplier * boatStats.speed;
   speed += throttleValue * targetAcceleration * delta;
   if (rawThrottle < 0 && speed > 0) {
     speed -= (18 + speed * 0.42) * delta;
@@ -1368,11 +1377,11 @@ function updateBoat(delta: number) {
   const drag = (rawThrottle === 0 ? 1.45 : 0.54) * weatherDrag;
   speed -= Math.sign(speed) * Math.min(Math.abs(speed), (drag + Math.abs(speed) * 0.042) * delta);
   const stormPenalty = currentSea.rain * Math.max(0.03, 0.14 - progress.upgrades.hull * 0.035);
-  const forwardLimit = (boosting ? 32 : 23) * engineMultiplier * (1 - stormPenalty);
+  const forwardLimit = (boosting ? 32 : 23) * engineMultiplier * boatStats.speed * (1 - stormPenalty);
   speed = THREE.MathUtils.clamp(speed, -8.5, forwardLimit);
 
   const turnPower = THREE.MathUtils.clamp(Math.abs(speed) / 16, 0.22, 1);
-  heading += steerValue * turnPower * delta * 1.55;
+  heading += steerValue * turnPower * delta * 1.55 * boatStats.handling;
   displaySpeed = THREE.MathUtils.damp(displaySpeed, Math.abs(speed), 7.5, delta);
 
   const forward = tmpVector.set(Math.sin(heading), 0, -Math.cos(heading)).normalize();
@@ -1547,6 +1556,7 @@ function renderHarbor() {
   if (rewardText) rewardText.textContent = rewardGranted ? contract.reward.toString() : '0';
   if (contractTitle) contractTitle.textContent = contract.name;
   if (expeditionsText) expeditionsText.textContent = `${progress.expeditions} expedition${progress.expeditions === 1 ? '' : 's'} completed`;
+  renderFleet();
   if (!upgradeList) return;
   upgradeList.replaceChildren();
   (Object.keys(UPGRADE_CATALOG) as UpgradeKey[]).forEach((key) => {
@@ -1566,6 +1576,41 @@ function renderHarbor() {
     article.append(button);
     upgradeList.append(article);
   });
+}
+
+function renderFleet() {
+  if (!fleetList) return;
+  fleetList.replaceChildren();
+  (Object.keys(BOAT_CATALOG) as BoatKey[]).forEach((key) => {
+    const boat = BOAT_CATALOG[key];
+    const owned = progress.ownedBoats.includes(key);
+    const active = progress.activeBoat === key;
+    const article = document.createElement('article');
+    article.className = `fleet-boat${active ? ' is-active' : ''}`;
+    article.innerHTML = `<div class="fleet-boat__silhouette" data-boat-silhouette="${key}"><span>${key === 'aurora' ? 'A42' : 'VX'}</span></div><div><span>${boat.name}</span><strong>${boat.role}</strong><small>Speed ${Math.round(boat.speed * 100)} / Handling ${Math.round(boat.handling * 100)}</small></div>`;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.dataset.boat = key;
+    button.disabled = active || (!owned && progress.credits < boat.price);
+    button.textContent = active ? 'Equipped' : owned ? 'Equip' : `${boat.price} credits`;
+    button.addEventListener('click', () => { void purchaseOrEquipBoat(key); });
+    article.append(button);
+    fleetList.append(article);
+  });
+}
+
+async function purchaseOrEquipBoat(key: BoatKey) {
+  const boat = BOAT_CATALOG[key];
+  if (!progress.ownedBoats.includes(key)) {
+    if (progress.credits < boat.price) return;
+    progress.credits -= boat.price;
+    progress.ownedBoats.push(key);
+  }
+  progress.activeBoat = key;
+  saveProgress(progress);
+  await loadActiveYacht();
+  renderHarbor();
+  setNotice(`${boat.name} equipped for the next expedition.`);
 }
 
 function purchaseUpgrade(key: UpgradeKey) {

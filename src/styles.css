@@ -400,6 +400,104 @@ button:focus-visible {
   display: grid;
 }
 
+.fleet {
+  padding: 16px 22px 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.fleet__heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 11px;
+}
+
+.fleet__heading span {
+  color: #f6ca6f;
+  font-size: 11px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.fleet__heading strong {
+  color: #a9c8d5;
+  font-size: 11px;
+}
+
+.fleet__list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.fleet-boat {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  min-height: 105px;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.fleet-boat.is-active {
+  border-color: rgba(101, 213, 222, 0.55);
+  background: rgba(101, 213, 222, 0.08);
+}
+
+.fleet-boat > div:nth-child(2) {
+  display: grid;
+  gap: 2px;
+}
+
+.fleet-boat span {
+  font-size: 14px;
+  font-weight: 850;
+}
+
+.fleet-boat strong,
+.fleet-boat small {
+  color: #a9c8d5;
+  font-size: 10px;
+}
+
+.fleet-boat__silhouette {
+  display: grid;
+  width: 58px;
+  height: 52px;
+  place-items: center;
+  clip-path: polygon(9% 32%, 73% 25%, 100% 52%, 82% 78%, 14% 73%, 0 52%);
+  background: linear-gradient(145deg, #eff8f8, #408396);
+  color: #082733;
+}
+
+.fleet-boat__silhouette[data-boat-silhouette="voyager"] {
+  clip-path: polygon(0 42%, 78% 22%, 100% 50%, 74% 72%, 8% 78%);
+  background: linear-gradient(145deg, #f7d782, #d45e3b);
+}
+
+.fleet-boat button {
+  grid-column: 1 / -1;
+  min-height: 34px;
+  border: 1px solid rgba(246, 202, 111, 0.55);
+  border-radius: 5px;
+  background: rgba(246, 202, 111, 0.13);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.fleet-boat button:disabled {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: #6f8993;
+  cursor: not-allowed;
+}
+
 .upgrade {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 92px 120px;
@@ -771,6 +869,14 @@ button:focus-visible {
 
   .harbor__reward {
     padding: 13px 15px;
+  }
+
+  .fleet {
+    padding: 13px 15px;
+  }
+
+  .fleet__list {
+    grid-template-columns: 1fr;
   }
 
   .upgrade {

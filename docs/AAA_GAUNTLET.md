@@ -85,3 +85,11 @@ Pass. The pause overlay stops simulation, clears held controls, remains visually
 | Technical Director | 6.4 | 7.7 | Automated gameplay tests, code modularization, platform SDK adapters |
 
 Weighted checkpoint: 74/100. Verdict: continue. The 88/100 AAA browser-quality gate has not been reached.
+
+## Round 6 target
+
+Deliver real fleet ownership. A second Blender-authored vessel must use its own GLB, handling profile, purchase price, owned state, and equip state. Ownership and the active vessel must survive reload without breaking older saves.
+
+## Round 6 result
+
+Pass. Aurora 42 and Voyager X are separate model assets with distinct speed and handling. The responsive fleet shop supports affordability, purchasing, equipping, model hot-swapping, save migration, and reload persistence. Desktop and 390x844 browser checks passed at 60 FPS with no runtime errors.
