@@ -17,7 +17,7 @@ type MissionSignal = {
   position: THREE.Vector3;
   group: THREE.Group;
   collected: boolean;
-  sensor?: unknown;
+  sensor?: RAPIER.Collider;
 };
 
 type WakeParticle = {
@@ -46,6 +46,7 @@ const objectiveText = document.querySelector<HTMLElement>('[data-objective]');
 const npcText = document.querySelector<HTMLElement>('[data-npc]');
 const speedText = document.querySelector<HTMLElement>('[data-speed]');
 const headingText = document.querySelector<HTMLElement>('[data-heading]');
+const targetRangeText = document.querySelector<HTMLElement>('[data-target-range]');
 const windText = document.querySelector<HTMLElement>('[data-wind]');
 const fpsText = document.querySelector<HTMLElement>('[data-fps]');
 const progressText = document.querySelector<HTMLElement>('[data-progress]');
@@ -208,6 +209,11 @@ const expeditionContracts: Array<{ name: string; reward: number; weather: Weathe
   { name: 'Storm Relay', reward: 1150, weather: 'storm', briefing: 'Restore the navigation relay before the storm closes the channel.' },
   { name: 'Golden Reef Research', reward: 1000, weather: 'calm', briefing: 'Document the reef route and retrieve its deep-water sensor.' },
 ];
+const contractRoutes = [
+  [[0, -70], [70, -120], [135, 26], [26, 162], [-96, 132]],
+  [[-42, -54], [-116, -16], [-148, 92], [-38, 166], [86, 128]],
+  [[52, -58], [122, -82], [158, 34], [92, 128], [-16, 148]],
+] as const;
 let activeContractIndex = progress.expeditions % expeditionContracts.length;
 
 const windDirection = new THREE.Vector3(0.58, 0, -0.82).normalize();
@@ -439,7 +445,7 @@ class OceanMusic {
 }
 
 async function initialize() {
-  const qaMode = location.hostname === 'localhost' ? new URLSearchParams(location.search).get('qa') : null;
+  const qaMode = ['localhost', '127.0.0.1'].includes(location.hostname) ? new URLSearchParams(location.search).get('qa') : null;
   await platform.initialize();
   setProgressStorage(platform.storage);
   Object.assign(progress, loadProgress());
@@ -454,6 +460,7 @@ async function initialize() {
   createLighting();
   await createOceanAndSky();
   createWorld();
+  configureContractRoute();
   await createYacht();
   await createSwimmer();
   createPhysics();
@@ -833,6 +840,21 @@ function createRecoveryBeacon() {
   scanRing.position.y = 1.5;
   recoveryBeacon.add(scanRing);
   recoveryBeacon.userData.scanRing = scanRing;
+}
+
+function configureContractRoute() {
+  const route = contractRoutes[activeContractIndex % contractRoutes.length];
+  missionSignals.forEach((signal, index) => {
+    const [x, z] = route[index];
+    signal.position.set(x, 0, z);
+    signal.group.position.x = x;
+    signal.group.position.z = z;
+    signal.sensor?.setTranslation({ x, y: 1.2, z });
+  });
+  if (recoveryBeacon) {
+    const final = missionSignals[missionSignals.length - 1].position;
+    recoveryBeacon.position.set(final.x + 7, seabedHeight(final.x + 7, final.z - 4) + 1.2, final.z - 4);
+  }
 }
 
 function createMarina() {
@@ -1747,6 +1769,7 @@ function launchNextExpedition() {
     signal.group.visible = true;
   });
   recoveryBeacon.visible = true;
+  configureContractRoute();
   harbor?.classList.remove('is-open');
   harbor?.setAttribute('aria-hidden', 'true');
   resetBoat();
@@ -2019,6 +2042,19 @@ function updateHud() {
   const depth = swimmer ? Math.max(0, surface - swimmer.position.y) : 0;
   if (speedText) speedText.textContent = Math.round(activeSpeed * 1.94).toString();
   if (headingText) headingText.textContent = formatHeading(activeHeading);
+  if (targetRangeText) {
+    const target = missionSignals[missionIndex];
+    const activePosition = playerMode === 'helm' ? yacht?.position : swimmer?.position;
+    if (awaitingDiveRecovery && recoveryBeacon && activePosition) {
+      targetRangeText.textContent = Math.round(activePosition.distanceTo(recoveryBeacon.position)).toString();
+    } else if (awaitingHarbor && activePosition) {
+      targetRangeText.textContent = Math.round(activePosition.distanceTo(marinaPosition)).toString();
+    } else if (target && activePosition) {
+      targetRangeText.textContent = Math.round(Math.hypot(activePosition.x - target.position.x, activePosition.z - target.position.z)).toString();
+    } else {
+      targetRangeText.textContent = '--';
+    }
+  }
   if (windText) windText.textContent = Math.round(currentSea.windKnots).toString();
   if (fpsText) fpsText.textContent = measuredFps.toString();
   if (progressText) progressText.textContent = `${Math.min(missionIndex, missionSignals.length)}`;

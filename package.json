@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 5174",
     "build": "tsc --noEmit && vite build",
+    "verify:portal": "node scripts/verify-portal-build.mjs",
+    "qa": "npm run build && npm run verify:portal && playwright test",
     "preview": "vite preview --host 0.0.0.0 --port 4174",
     "make:assets": "node scripts/run_blender.mjs",
     "cf:projects": "wrangler pages project list",
@@ -16,6 +18,7 @@
     "three": "^0.185.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@types/node": "^22.14.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.0",
