@@ -38,3 +38,23 @@ A first-time player can complete Bluewater Survey, earn credits, purchase an upg
 - Unaffordable and maximum-level upgrades are disabled.
 - The next expedition resets all five signals without resetting progression.
 - Harbor UI works at 390x844 and 1440x900 without overlap.
+
+## Round 1 result
+
+Pass. The five-signal expedition now awards persistent credits, opens a responsive harbor debrief, supports three functional upgrade lines, and launches a repeatable expedition. Production build and desktop/mobile visual checks passed.
+
+## Round 2 target
+
+Close immersion and input gaps: require a physical marina return before rewards, support standard gamepads across helm and swimming modes, and adapt render resolution when frame rate falls below the device target.
+
+## Round 2 result
+
+Pass. Aurora Marina is now a physical departure and return location, rewards require a low-speed docking approach, standard gamepads control helm/swimming/camera actions, and adaptive resolution protects frame pacing on slower devices.
+
+## Round 3 target
+
+Make underwater play part of the core expedition rather than an optional visual mode. The final route signal must lead to a modeled seabed objective that the diver physically recovers before the return-to-harbor stage unlocks.
+
+## Round 3 result
+
+Pass. Bluewater Survey now requires a dive at the final signal, provides live range guidance to a modeled illuminated research beacon, completes only on physical contact, and then unlocks the marina return. Keyboard, touch, and gamepad mappings include forward, turn, rise, dive, and boost actions.

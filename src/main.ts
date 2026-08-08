@@ -109,6 +109,7 @@ const cameraOffsets = [
   new THREE.Vector3(0, 21, 49),
   new THREE.Vector3(25, 11, 24),
 ];
+const marinaPosition = new THREE.Vector3(0, 0, 28);
 
 let water: InstanceType<typeof Water>;
 let underwaterSurface: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshStandardMaterial>;
@@ -130,6 +131,7 @@ let swimmerLeftLeg: THREE.Object3D | undefined;
 let swimmerRightLeg: THREE.Object3D | undefined;
 let swimmerLeftArm: THREE.Object3D | undefined;
 let swimmerRightArm: THREE.Object3D | undefined;
+let recoveryBeacon: THREE.Group;
 let bubblePoints: THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial>;
 let bubblePositions = new Float32Array(0);
 let rainLines: THREE.LineSegments<THREE.BufferGeometry, THREE.LineBasicMaterial>;
@@ -170,6 +172,16 @@ let targetSea = cloneSeaState(WEATHER_PRESETS.bluewater);
 const progress = loadProgress();
 let expeditionComplete = false;
 let rewardGranted = false;
+let awaitingHarbor = false;
+let awaitingDiveRecovery = false;
+let gamepadThrottle = 0;
+let gamepadSteer = 0;
+let gamepadBoost = false;
+let gamepadVertical = 0;
+let gamepadConnected = false;
+let previousGamepadButtons: boolean[] = [];
+let renderScale = maxRenderPixelRatio;
+let qualityCheckAt = 8;
 const EXPEDITION_REWARD = 850;
 
 const windDirection = new THREE.Vector3(0.58, 0, -0.82).normalize();
@@ -411,6 +423,16 @@ async function initialize() {
     renderHarbor();
     harbor?.classList.add('is-open');
     harbor?.setAttribute('aria-hidden', 'false');
+  } else if (qaMode === 'dive') {
+    missionIndex = missionSignals.length;
+    missionSignals.forEach((signal) => { signal.collected = true; });
+    awaitingDiveRecovery = true;
+    const diveStart = recoveryBeacon.position.clone().add(new THREE.Vector3(0, 2.2, 10));
+    yacht.position.set(diveStart.x, sampleOceanHeight(diveStart.x, diveStart.z, gameTime), diveStart.z);
+    boatBody.setTranslation({ x: yacht.position.x, y: yacht.position.y, z: yacht.position.z }, true);
+    enterSwimMode();
+    swimmer.position.copy(diveStart);
+    swimmerBody.setTranslation({ x: diveStart.x, y: diveStart.y, z: diveStart.z }, true);
   }
 
   loading?.classList.add('is-hidden');
@@ -703,6 +725,7 @@ function createObstacleCollider(x: number, z: number, radius: number) {
 }
 
 function createWorld() {
+  createMarina();
   createIsland(new THREE.Vector3(-58, 0, -78), 22, 0.8);
   createIsland(new THREE.Vector3(88, 0, -24), 18, 1.2);
   createIsland(new THREE.Vector3(34, 0, 96), 24, 0.5);
@@ -720,6 +743,91 @@ function createWorld() {
 
   createFloatingDebris();
   createUnderwaterWorld();
+  createRecoveryBeacon();
+}
+
+function createRecoveryBeacon() {
+  recoveryBeacon = new THREE.Group();
+  recoveryBeacon.name = 'sunken_research_beacon';
+  const target = missionSignals[missionSignals.length - 1].position;
+  recoveryBeacon.position.set(target.x + 7, seabedHeight(target.x + 7, target.z - 4) + 1.2, target.z - 4);
+  scene.add(recoveryBeacon);
+
+  const metal = new THREE.MeshStandardMaterial({ color: 0xd6e2e5, metalness: 0.72, roughness: 0.28 });
+  const yellow = new THREE.MeshStandardMaterial({ color: 0xe2a936, metalness: 0.42, roughness: 0.38 });
+  const glow = new THREE.MeshStandardMaterial({ color: 0x85f5ff, emissive: 0x2adceb, emissiveIntensity: 4, roughness: 0.16 });
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(1.15, 1.45, 0.7, 18), yellow);
+  base.position.y = 0.35;
+  recoveryBeacon.add(base);
+  const core = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.82, 2.8, 16), metal);
+  core.position.y = 1.85;
+  core.rotation.z = 0.12;
+  recoveryBeacon.add(core);
+  const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.34, 16, 12), glow);
+  lamp.position.y = 3.45;
+  recoveryBeacon.add(lamp);
+  const scanRing = new THREE.Mesh(
+    new THREE.TorusGeometry(2.4, 0.045, 8, 64),
+    new THREE.MeshBasicMaterial({ color: 0x74eef4, transparent: true, opacity: 0.64, depthWrite: false }),
+  );
+  scanRing.rotation.x = Math.PI / 2;
+  scanRing.position.y = 1.5;
+  recoveryBeacon.add(scanRing);
+  recoveryBeacon.userData.scanRing = scanRing;
+}
+
+function createMarina() {
+  const marina = new THREE.Group();
+  marina.name = 'aurora_marina';
+  marina.position.copy(marinaPosition);
+  scene.add(marina);
+
+  const pierMaterial = new THREE.MeshStandardMaterial({ color: 0x8d6844, roughness: 0.72, metalness: 0.04 });
+  const trimMaterial = new THREE.MeshStandardMaterial({ color: 0xe7edf0, roughness: 0.36, metalness: 0.15 });
+  const roofMaterial = new THREE.MeshStandardMaterial({ color: 0x155c6d, roughness: 0.38, metalness: 0.2 });
+  const glowMaterial = new THREE.MeshStandardMaterial({ color: 0xffe5a3, emissive: 0xffb64d, emissiveIntensity: 3 });
+
+  [-8.5, 8.5].forEach((x) => {
+    const pier = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.7, 34), pierMaterial);
+    pier.position.set(x, 0.45, 0);
+    marina.add(pier);
+    for (let z = -15; z <= 15; z += 6) {
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.3, 4.2, 10), trimMaterial);
+      post.position.set(x + Math.sign(x) * 1.15, -0.8, z);
+      marina.add(post);
+    }
+  });
+
+  const office = new THREE.Mesh(new THREE.BoxGeometry(12, 4.6, 7), trimMaterial);
+  office.position.set(-18, 3.05, 7);
+  marina.add(office);
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(13.2, 0.7, 8.2), roofMaterial);
+  roof.position.set(-18, 5.65, 7);
+  marina.add(roof);
+
+  const arch = new THREE.Group();
+  arch.position.z = -17;
+  [-5.2, 5.2].forEach((x) => {
+    const column = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.5, 7.2, 14), trimMaterial);
+    column.position.set(x, 3.2, 0);
+    arch.add(column);
+    const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.32, 14, 10), glowMaterial);
+    lamp.position.set(x, 6.9, 0);
+    arch.add(lamp);
+  });
+  const header = new THREE.Mesh(new THREE.BoxGeometry(11.2, 0.7, 0.7), roofMaterial);
+  header.position.y = 6.35;
+  arch.add(header);
+  marina.add(arch);
+
+  const dockRing = new THREE.Mesh(
+    new THREE.RingGeometry(13, 15, 64),
+    new THREE.MeshBasicMaterial({ color: 0x7eeaf1, transparent: true, opacity: 0.24, side: THREE.DoubleSide, depthWrite: false }),
+  );
+  dockRing.rotation.x = -Math.PI / 2;
+  dockRing.position.set(0, 0.18, -3);
+  marina.add(dockRing);
+  surfaceOnlyObjects.push(dockRing);
 }
 
 function createIsland(position: THREE.Vector3, radius: number, phase: number) {
@@ -1195,6 +1303,8 @@ function tick() {
     fpsFrames = 0;
   }
 
+  updateGamepad();
+  updateAdaptiveQuality();
   updateWeather(delta);
   water.material.uniforms.time.value += delta * currentSea.waterSpeed;
 
@@ -1218,13 +1328,15 @@ function tick() {
 
 function updateBoat(delta: number) {
   const helmActive = playerMode === 'helm';
-  const rawThrottle = helmActive
+  const keyboardThrottle = helmActive
     ? (isDown('KeyW') || isDown('ArrowUp') ? 1 : 0) - (isDown('KeyS') || isDown('ArrowDown') ? 0.72 : 0)
     : 0;
-  const rawSteer = helmActive
+  const keyboardSteer = helmActive
     ? (isDown('KeyA') || isDown('ArrowLeft') ? 1 : 0) - (isDown('KeyD') || isDown('ArrowRight') ? 1 : 0)
     : 0;
-  const boosting = helmActive && (isDown('ShiftLeft') || isDown('ShiftRight'));
+  const rawThrottle = Math.abs(keyboardThrottle) > 0.01 ? keyboardThrottle : gamepadThrottle;
+  const rawSteer = Math.abs(keyboardSteer) > 0.01 ? keyboardSteer : gamepadSteer;
+  const boosting = helmActive && (isDown('ShiftLeft') || isDown('ShiftRight') || gamepadBoost);
 
   throttleValue = THREE.MathUtils.damp(throttleValue, rawThrottle, 6.5, delta);
   steerValue = THREE.MathUtils.damp(steerValue, rawSteer, 8.5, delta);
@@ -1296,10 +1408,13 @@ function updateBoat(delta: number) {
 function updateSwimmer(delta: number) {
   if (playerMode !== 'swim') return;
 
-  const forwardInput = (isDown('KeyW') || isDown('ArrowUp') ? 1 : 0) - (isDown('KeyS') || isDown('ArrowDown') ? 0.65 : 0);
-  const turnInput = (isDown('KeyA') || isDown('ArrowLeft') ? 1 : 0) - (isDown('KeyD') || isDown('ArrowRight') ? 1 : 0);
-  const verticalInput = (isDown('Space') ? 1 : 0) - (isDown('ControlLeft') || isDown('ControlRight') ? 1 : 0);
-  const boosting = isDown('ShiftLeft') || isDown('ShiftRight');
+  const keyboardForward = (isDown('KeyW') || isDown('ArrowUp') ? 1 : 0) - (isDown('KeyS') || isDown('ArrowDown') ? 0.65 : 0);
+  const keyboardTurn = (isDown('KeyA') || isDown('ArrowLeft') ? 1 : 0) - (isDown('KeyD') || isDown('ArrowRight') ? 1 : 0);
+  const forwardInput = Math.abs(keyboardForward) > 0.01 ? keyboardForward : gamepadThrottle;
+  const turnInput = Math.abs(keyboardTurn) > 0.01 ? keyboardTurn : gamepadSteer;
+  const keyboardVertical = (isDown('Space') ? 1 : 0) - (isDown('ControlLeft') || isDown('ControlRight') ? 1 : 0);
+  const verticalInput = Math.abs(keyboardVertical) > 0.01 ? keyboardVertical : gamepadVertical;
+  const boosting = isDown('ShiftLeft') || isDown('ShiftRight') || gamepadBoost;
   const targetSwimSpeed = forwardInput * (boosting ? 7.2 : 4.4);
 
   swimYaw += turnInput * delta * (boosting ? 1.55 : 1.2);
@@ -1349,8 +1464,31 @@ function updateMissions(delta: number) {
     signal.group.visible = !signal.collected || gameTime - Math.floor(gameTime) < 0.45;
   });
 
+  if (recoveryBeacon) {
+    const ring = recoveryBeacon.userData.scanRing as THREE.Mesh | undefined;
+    if (ring) {
+      ring.rotation.z += delta * 0.65;
+      ring.scale.setScalar(1 + Math.sin(gameTime * 2.2) * 0.12);
+    }
+  }
+
   const current = missionSignals[missionIndex];
-  if (!current) return;
+  if (!current) {
+    if (awaitingDiveRecovery && playerMode === 'swim') {
+      const distance = swimmer.position.distanceTo(recoveryBeacon.position);
+      if (distance < 4.2) {
+        awaitingDiveRecovery = false;
+        awaitingHarbor = true;
+        recoveryBeacon.visible = false;
+        setNotice('Research beacon secured. Board Aurora and return to the marina.');
+      }
+    }
+    if (awaitingHarbor && playerMode === 'helm') {
+      const distance = yacht.position.distanceTo(marinaPosition);
+      if (distance < 18 && Math.abs(speed) < 4.2) completeExpedition();
+    }
+    return;
+  }
 
   const activePosition = playerMode === 'helm' ? yacht.position : swimmer.position;
   const distance = Math.hypot(activePosition.x - current.position.x, activePosition.z - current.position.z);
@@ -1358,7 +1496,8 @@ function updateMissions(delta: number) {
     current.collected = true;
     missionIndex += 1;
     if (missionIndex >= missionSignals.length) {
-      completeExpedition();
+      awaitingDiveRecovery = true;
+      setNotice('Final signal found. Dive below and recover the research beacon.');
     } else {
       setNotice('Signal logged. Next marker updated.');
     }
@@ -1368,6 +1507,8 @@ function updateMissions(delta: number) {
 function completeExpedition() {
   if (expeditionComplete) return;
   expeditionComplete = true;
+  awaitingHarbor = false;
+  awaitingDiveRecovery = false;
   speed = 0;
   throttleValue = 0;
   if (!rewardGranted) {
@@ -1423,11 +1564,14 @@ function purchaseUpgrade(key: UpgradeKey) {
 function launchNextExpedition() {
   expeditionComplete = false;
   rewardGranted = false;
+  awaitingHarbor = false;
+  awaitingDiveRecovery = false;
   missionIndex = 0;
   missionSignals.forEach((signal) => {
     signal.collected = false;
     signal.group.visible = true;
   });
+  recoveryBeacon.visible = true;
   harbor?.classList.remove('is-open');
   harbor?.setAttribute('aria-hidden', 'true');
   resetBoat();
@@ -1699,14 +1843,63 @@ function updateHud() {
   if (modeToggle) modeToggle.textContent = playerMode === 'helm' ? 'Dive' : 'Board';
 
   if (playerMode === 'swim') {
-    if (objectiveText) objectiveText.textContent = depth < 0.5 ? 'Surface survey' : 'Explore the Aurora reef';
+    if (objectiveText) objectiveText.textContent = awaitingDiveRecovery ? 'Recover the sunken research beacon' : depth < 0.5 ? 'Surface survey' : 'Explore the Aurora reef';
     if (npcText) {
-      npcText.textContent = oxygen < 25 ? 'Mara: Air is low. Move toward the surface.' : 'Mara: Telemetry is clear. The reef is alive below you.';
+      if (oxygen < 25) {
+        npcText.textContent = 'Mara: Air is low. Move toward the surface.';
+      } else if (awaitingDiveRecovery) {
+        const distance = swimmer.position.distanceTo(recoveryBeacon.position);
+        npcText.textContent = `Mara: Beacon signal is ${Math.round(distance)} meters away.`;
+      } else {
+        npcText.textContent = 'Mara: Telemetry is clear. The reef is alive below you.';
+      }
     }
   } else {
-    if (objectiveText) objectiveText.textContent = missionCopy[Math.min(missionIndex, missionCopy.length - 1)];
-    if (npcText) npcText.textContent = npcCopy[Math.min(missionIndex, npcCopy.length - 1)];
+    if (objectiveText) objectiveText.textContent = awaitingDiveRecovery ? 'Dive to recover the research beacon' : awaitingHarbor ? 'Return to Aurora Marina' : missionCopy[Math.min(missionIndex, missionCopy.length - 1)];
+    if (npcText) npcText.textContent = awaitingDiveRecovery ? 'Mara: Hold position and enter the water. The beacon is below us.' : awaitingHarbor ? 'Mara: Bring us between the piers and reduce speed.' : npcCopy[Math.min(missionIndex, npcCopy.length - 1)];
   }
+}
+
+function updateGamepad() {
+  const pad = navigator.getGamepads?.()[0];
+  if (!pad) {
+    gamepadThrottle = 0;
+    gamepadSteer = 0;
+    gamepadBoost = false;
+    gamepadVertical = 0;
+    previousGamepadButtons = [];
+    return;
+  }
+  if (!gamepadConnected) {
+    gamepadConnected = true;
+    setNotice('Controller connected. Stick steers; triggers throttle; bumpers control depth.');
+  }
+  const deadzone = (value: number) => Math.abs(value) < 0.12 ? 0 : value;
+  gamepadSteer = -deadzone(pad.axes[0] ?? 0);
+  const forward = pad.buttons[7]?.value ?? Math.max(0, -(pad.axes[1] ?? 0));
+  const reverse = pad.buttons[6]?.value ?? Math.max(0, pad.axes[1] ?? 0);
+  gamepadThrottle = forward - reverse * 0.72;
+  gamepadVertical = (pad.buttons[5]?.pressed ? 1 : 0) - (pad.buttons[4]?.pressed ? 1 : 0);
+  gamepadBoost = Boolean(pad.buttons[10]?.pressed);
+  const currentButtons = pad.buttons.map((button) => button.pressed);
+  if (currentButtons[0] && !previousGamepadButtons[0]) togglePlayerMode();
+  if (currentButtons[2] && !previousGamepadButtons[2]) {
+    cameraMode = (cameraMode + 1) % 3;
+    setNotice('Camera changed.');
+  }
+  previousGamepadButtons = currentButtons;
+}
+
+function updateAdaptiveQuality() {
+  if (gameTime < qualityCheckAt) return;
+  qualityCheckAt = gameTime + 4;
+  const lowTarget = matchMedia('(max-width: 760px)').matches ? 32 : 48;
+  const nextScale = measuredFps < lowTarget ? Math.max(0.52, renderScale - 0.06) : measuredFps > 57 ? Math.min(maxRenderPixelRatio, renderScale + 0.03) : renderScale;
+  if (Math.abs(nextScale - renderScale) < 0.001) return;
+  renderScale = nextScale;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, renderScale));
+  renderer.setSize(window.innerWidth, window.innerHeight, false);
+  rainLines.visible = renderScale > 0.58;
 }
 
 function formatHeading(value: number) {
@@ -1892,7 +2085,7 @@ function setNotice(message: string) {
 function resize() {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, maxRenderPixelRatio));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, renderScale));
   renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
