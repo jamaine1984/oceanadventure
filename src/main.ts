@@ -63,6 +63,11 @@ const rewardText = document.querySelector<HTMLElement>('[data-reward]');
 const expeditionsText = document.querySelector<HTMLElement>('[data-expeditions]');
 const upgradeList = document.querySelector<HTMLElement>('[data-upgrade-list]');
 const nextExpeditionButton = document.querySelector<HTMLButtonElement>('[data-next-expedition]');
+const contractTitle = document.querySelector<HTMLElement>('[data-contract-title]');
+const pauseToggle = document.querySelector<HTMLButtonElement>('[data-pause-toggle]');
+const pauseMenu = document.querySelector<HTMLElement>('[data-pause-menu]');
+const resumeButton = document.querySelector<HTMLButtonElement>('[data-resume]');
+const qualityButtons = document.querySelectorAll<HTMLButtonElement>('[data-quality]');
 
 if (!gameRoot || !host) {
   throw new Error('Ocean Adventure canvas host is missing.');
@@ -182,7 +187,14 @@ let gamepadConnected = false;
 let previousGamepadButtons: boolean[] = [];
 let renderScale = maxRenderPixelRatio;
 let qualityCheckAt = 8;
-const EXPEDITION_REWARD = 850;
+let isPaused = false;
+let manualQuality = false;
+const expeditionContracts: Array<{ name: string; reward: number; weather: WeatherKey; briefing: string }> = [
+  { name: 'Bluewater Survey', reward: 850, weather: 'bluewater', briefing: 'Chart the outer markers and recover the lost research beacon.' },
+  { name: 'Storm Relay', reward: 1150, weather: 'storm', briefing: 'Restore the navigation relay before the storm closes the channel.' },
+  { name: 'Golden Reef Research', reward: 1000, weather: 'calm', briefing: 'Document the reef route and retrieve its deep-water sensor.' },
+];
+let activeContractIndex = progress.expeditions % expeditionContracts.length;
 
 const windDirection = new THREE.Vector3(0.58, 0, -0.82).normalize();
 const currentWaterColor = new THREE.Color(WEATHER_PRESETS.bluewater.waterColor);
@@ -413,11 +425,11 @@ async function initialize() {
   await createSwimmer();
   createPhysics();
   createInput();
-  selectWeather('bluewater', false);
+  selectWeather(expeditionContracts[activeContractIndex].weather, false);
   updateHud();
 
   if (qaMode === 'harbor') {
-    progress.credits = Math.max(progress.credits, EXPEDITION_REWARD);
+    progress.credits = Math.max(progress.credits, expeditionContracts[activeContractIndex].reward);
     rewardGranted = true;
     expeditionComplete = true;
     renderHarbor();
@@ -1303,6 +1315,11 @@ function tick() {
     fpsFrames = 0;
   }
 
+  if (isPaused) {
+    renderer.render(scene, camera);
+    return;
+  }
+
   updateGamepad();
   updateAdaptiveQuality();
   updateWeather(delta);
@@ -1512,7 +1529,7 @@ function completeExpedition() {
   speed = 0;
   throttleValue = 0;
   if (!rewardGranted) {
-    progress.credits += EXPEDITION_REWARD;
+    progress.credits += expeditionContracts[activeContractIndex].reward;
     progress.expeditions += 1;
     rewardGranted = true;
     saveProgress(progress);
@@ -1520,13 +1537,15 @@ function completeExpedition() {
   renderHarbor();
   harbor?.classList.add('is-open');
   harbor?.setAttribute('aria-hidden', 'false');
-  setNotice(`Expedition complete. ${EXPEDITION_REWARD} credits awarded.`);
+  setNotice(`Expedition complete. ${expeditionContracts[activeContractIndex].reward} credits awarded.`);
 }
 
 function renderHarbor() {
+  const contract = expeditionContracts[activeContractIndex];
   if (creditsText) creditsText.textContent = progress.credits.toString();
   if (harborCredits) harborCredits.textContent = progress.credits.toString();
-  if (rewardText) rewardText.textContent = rewardGranted ? EXPEDITION_REWARD.toString() : '0';
+  if (rewardText) rewardText.textContent = rewardGranted ? contract.reward.toString() : '0';
+  if (contractTitle) contractTitle.textContent = contract.name;
   if (expeditionsText) expeditionsText.textContent = `${progress.expeditions} expedition${progress.expeditions === 1 ? '' : 's'} completed`;
   if (!upgradeList) return;
   upgradeList.replaceChildren();
@@ -1564,6 +1583,7 @@ function purchaseUpgrade(key: UpgradeKey) {
 function launchNextExpedition() {
   expeditionComplete = false;
   rewardGranted = false;
+  activeContractIndex = progress.expeditions % expeditionContracts.length;
   awaitingHarbor = false;
   awaitingDiveRecovery = false;
   missionIndex = 0;
@@ -1575,7 +1595,9 @@ function launchNextExpedition() {
   harbor?.classList.remove('is-open');
   harbor?.setAttribute('aria-hidden', 'true');
   resetBoat();
-  setNotice('New Bluewater Survey launched. Signal one is active.');
+  const contract = expeditionContracts[activeContractIndex];
+  selectWeather(contract.weather, false);
+  setNotice(`${contract.name} launched. ${contract.briefing}`);
   updateHud();
 }
 
@@ -1856,7 +1878,7 @@ function updateHud() {
     }
   } else {
     if (objectiveText) objectiveText.textContent = awaitingDiveRecovery ? 'Dive to recover the research beacon' : awaitingHarbor ? 'Return to Aurora Marina' : missionCopy[Math.min(missionIndex, missionCopy.length - 1)];
-    if (npcText) npcText.textContent = awaitingDiveRecovery ? 'Mara: Hold position and enter the water. The beacon is below us.' : awaitingHarbor ? 'Mara: Bring us between the piers and reduce speed.' : npcCopy[Math.min(missionIndex, npcCopy.length - 1)];
+    if (npcText) npcText.textContent = awaitingDiveRecovery ? 'Mara: Hold position and enter the water. The beacon is below us.' : awaitingHarbor ? 'Mara: Bring us between the piers and reduce speed.' : missionIndex === 0 ? `Mara: ${expeditionContracts[activeContractIndex].briefing}` : npcCopy[Math.min(missionIndex, npcCopy.length - 1)];
   }
 }
 
@@ -1891,6 +1913,7 @@ function updateGamepad() {
 }
 
 function updateAdaptiveQuality() {
+  if (manualQuality) return;
   if (gameTime < qualityCheckAt) return;
   qualityCheckAt = gameTime + 4;
   const lowTarget = matchMedia('(max-width: 760px)').matches ? 32 : 48;
@@ -1920,6 +1943,7 @@ function createInput() {
     if (event.code === 'KeyM' && !event.repeat) {
       void toggleMusic();
     }
+    if (event.code === 'Escape' && !event.repeat) togglePause();
     if (event.code === 'KeyC' && !event.repeat) {
       cameraMode = (cameraMode + 1) % 3;
       setNotice('Camera changed.');
@@ -1979,12 +2003,36 @@ function createInput() {
   });
 
   nextExpeditionButton?.addEventListener('click', launchNextExpedition);
+  pauseToggle?.addEventListener('click', () => togglePause(true));
+  resumeButton?.addEventListener('click', () => togglePause(false));
+  qualityButtons.forEach((button) => {
+    button.addEventListener('click', () => setQuality(button.dataset.quality ?? 'balanced'));
+  });
   renderHarbor();
 
   window.addEventListener('resize', resize);
   setTimeout(() => {
     notice?.classList.add('is-muted');
   }, 8500);
+}
+
+function togglePause(force?: boolean) {
+  if (harbor?.classList.contains('is-open')) return;
+  isPaused = force ?? !isPaused;
+  Object.keys(keys).forEach((key) => { keys[key] = false; });
+  pauseMenu?.classList.toggle('is-open', isPaused);
+  pauseMenu?.setAttribute('aria-hidden', String(!isPaused));
+  pauseToggle?.setAttribute('aria-label', isPaused ? 'Resume' : 'Pause');
+}
+
+function setQuality(quality: string) {
+  manualQuality = quality !== 'balanced';
+  renderScale = quality === 'performance' ? 0.55 : quality === 'quality' ? Math.min(1, window.devicePixelRatio) : maxRenderPixelRatio;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, renderScale));
+  renderer.setSize(window.innerWidth, window.innerHeight, false);
+  rainLines.visible = quality !== 'performance';
+  if (fishSchool) fishSchool.visible = quality !== 'performance' || playerMode === 'swim';
+  qualityButtons.forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.quality === quality)));
 }
 
 async function ensureMusic() {

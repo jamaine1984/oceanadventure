@@ -42,16 +42,32 @@
         </div>
       </section>
       <div class="action-dock">
+        <button class="pause-toggle" type="button" data-pause-toggle aria-label="Pause" title="Pause">||</button>
         <button class="music-toggle" type="button" data-music-toggle>Music off</button>
         <button class="mode-toggle" type="button" data-mode-toggle>Dive</button>
       </div>
+      <section class="pause-menu" data-pause-menu aria-labelledby="pause-title" aria-hidden="true">
+        <div class="pause-menu__panel">
+          <span class="hud__eyebrow">Aurora systems</span>
+          <h2 id="pause-title">Voyage Paused</h2>
+          <div class="pause-menu__setting">
+            <span>Graphics</span>
+            <div class="pause-menu__segments" data-quality-control>
+              <button type="button" data-quality="performance">Performance</button>
+              <button type="button" data-quality="balanced" aria-pressed="true">Balanced</button>
+              <button type="button" data-quality="quality">Quality</button>
+            </div>
+          </div>
+          <button class="pause-menu__resume" type="button" data-resume>Resume voyage</button>
+        </div>
+      </section>
       <div class="notice" data-notice>Aurora systems ready.</div>
       <section class="harbor" data-harbor aria-labelledby="harbor-title" aria-hidden="true">
         <div class="harbor__panel">
           <header class="harbor__header">
             <div>
               <span class="hud__eyebrow">Mara's expedition office</span>
-              <h2 id="harbor-title">Bluewater Survey Complete</h2>
+              <h2 id="harbor-title"><span data-contract-title>Bluewater Survey</span> Complete</h2>
             </div>
             <div class="harbor__balance"><b data-harbor-credits>0</b><span>Credits</span></div>
           </header>

@@ -58,3 +58,30 @@ Make underwater play part of the core expedition rather than an optional visual 
 ## Round 3 result
 
 Pass. Bluewater Survey now requires a dive at the final signal, provides live range guidance to a modeled illuminated research beacon, completes only on physical contact, and then unlocks the marina return. Keyboard, touch, and gamepad mappings include forward, turn, rise, dive, and boost actions.
+
+## Round 4 target
+
+Increase replay value without diluting quality. Rotate authored expedition contracts across calm, bluewater, and storm conditions with distinct briefings and payouts while preserving the complete sail, dive, dock, reward, and upgrade loop.
+
+## Round 4 result
+
+Pass. Expeditions now rotate through Bluewater Survey, Storm Relay, and Golden Reef Research, automatically selecting sea state and applying distinct briefings and rewards.
+
+## Round 5 target
+
+Meet the production usability gate with a true pause state and player-selectable performance, balanced, and quality rendering profiles. Pausing must stop simulation and clear held input without interrupting the renderer.
+
+## Round 5 result
+
+Pass. The pause overlay stops simulation, clears held controls, remains visually responsive, and exposes verified performance, balanced, and quality render profiles without reloading the expedition.
+
+## Current judge checkpoint
+
+| Judge | Round 0 | Round 5 | Remaining veto |
+| --- | ---: | ---: | --- |
+| Gameplay Director | 5.8 | 7.4 | More mission interactions and stronger collision feedback |
+| Visual and Audio Director | 7.2 | 7.8 | Better harbor assets, animation, and richer sound effects |
+| Product Director | 3.5 | 6.9 | Onboarding, achievements, boat ownership, and portal monetization adapter |
+| Technical Director | 6.4 | 7.7 | Automated gameplay tests, code modularization, platform SDK adapters |
+
+Weighted checkpoint: 74/100. Verdict: continue. The 88/100 AAA browser-quality gate has not been reached.
