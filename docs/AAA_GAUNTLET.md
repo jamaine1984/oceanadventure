@@ -93,3 +93,15 @@ Deliver real fleet ownership. A second Blender-authored vessel must use its own 
 ## Round 6 result
 
 Pass. Aurora 42 and Voyager X are separate model assets with distinct speed and handling. The responsive fleet shop supports affordability, purchasing, equipping, model hot-swapping, save migration, and reload persistence. Desktop and 390x844 browser checks passed at 60 FPS with no runtime errors.
+
+## Round 7 target
+
+Raise interaction feedback and retention. Reef impacts must prevent high-speed tunneling, visibly reduce speed, and produce camera/audio feedback. Mission, recovery, purchase, and achievement events need distinct procedural cues. Persistent captain-log achievements must recognize exploration milestones.
+
+## Round 7 result
+
+Pass. Rapier CCD plus shoreline boundary resolution prevents reef tunneling and produces verified speed loss and impact messaging at 60 FPS. Five procedural event cue families are wired after user audio activation. Five backward-compatible achievements persist and render as locked or discovered captain-log entries across desktop and mobile harbor layouts.
+
+## Round 7 checkpoint
+
+Weighted score: 80/100. Verdict: continue. Highest remaining gaps are automated end-to-end gameplay coverage, portal SDK abstraction, stronger first-session guidance, and richer mission interaction variety.

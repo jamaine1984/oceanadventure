@@ -1,5 +1,6 @@
 export type UpgradeKey = 'engine' | 'tank' | 'hull';
 export type BoatKey = 'aurora' | 'voyager';
+export type AchievementKey = 'first_signal' | 'deep_diver' | 'storm_runner' | 'fleet_owner' | 'expedition_complete';
 
 export type PlayerProgress = {
   credits: number;
@@ -7,6 +8,7 @@ export type PlayerProgress = {
   upgrades: Record<UpgradeKey, number>;
   ownedBoats: BoatKey[];
   activeBoat: BoatKey;
+  achievements: AchievementKey[];
 };
 
 const STORAGE_KEY = 'ocean-adventure-progress-v1';
@@ -22,8 +24,16 @@ export const BOAT_CATALOG: Record<BoatKey, { name: string; role: string; price: 
   voyager: { name: 'Voyager X', role: 'Performance explorer', price: 1800, model: '/models/expedition_yacht.glb', speed: 1.14, handling: 1.08 },
 };
 
+export const ACHIEVEMENT_CATALOG: Record<AchievementKey, { name: string; description: string }> = {
+  first_signal: { name: 'Signal Found', description: 'Log the first navigation signal.' },
+  deep_diver: { name: 'Into the Blue', description: 'Dive deeper than 10 meters.' },
+  storm_runner: { name: 'Storm Runner', description: 'Log a signal during a storm.' },
+  fleet_owner: { name: 'Fleet Captain', description: 'Own both expedition vessels.' },
+  expedition_complete: { name: 'Safe Harbor', description: 'Complete a full expedition.' },
+};
+
 export function defaultProgress(): PlayerProgress {
-  return { credits: 0, expeditions: 0, upgrades: { engine: 0, tank: 0, hull: 0 }, ownedBoats: ['aurora'], activeBoat: 'aurora' };
+  return { credits: 0, expeditions: 0, upgrades: { engine: 0, tank: 0, hull: 0 }, ownedBoats: ['aurora'], activeBoat: 'aurora', achievements: [] };
 }
 
 export function loadProgress(): PlayerProgress {
@@ -34,6 +44,9 @@ export function loadProgress(): PlayerProgress {
       : ['aurora'];
     if (!ownedBoats.includes('aurora')) ownedBoats.unshift('aurora');
     const activeBoat = (parsed.activeBoat === 'voyager' && ownedBoats.includes('voyager')) ? 'voyager' : 'aurora';
+    const achievements = Array.isArray(parsed.achievements)
+      ? parsed.achievements.filter((key): key is AchievementKey => key in ACHIEVEMENT_CATALOG)
+      : [];
     return {
       credits: Math.max(0, Number(parsed.credits) || 0),
       expeditions: Math.max(0, Number(parsed.expeditions) || 0),
@@ -44,6 +57,7 @@ export function loadProgress(): PlayerProgress {
       },
       ownedBoats,
       activeBoat,
+      achievements,
     };
   } catch {
     return defaultProgress();

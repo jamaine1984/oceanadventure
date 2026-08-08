@@ -6,7 +6,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { Sky } from 'three/examples/jsm/objects/Sky.js';
 import { Water } from 'three/examples/jsm/objects/Water.js';
 import { WEATHER_PRESETS, cloneSeaState, dampSeaState, type WeatherKey } from './sea-config';
-import { BOAT_CATALOG, UPGRADE_CATALOG, defaultProgress, loadProgress, saveProgress, upgradeCost, type BoatKey, type UpgradeKey } from './progression';
+import { ACHIEVEMENT_CATALOG, BOAT_CATALOG, UPGRADE_CATALOG, defaultProgress, loadProgress, saveProgress, upgradeCost, type AchievementKey, type BoatKey, type UpgradeKey } from './progression';
 
 type KeyMap = Record<string, boolean>;
 type PlayerMode = 'helm' | 'swim';
@@ -63,6 +63,8 @@ const rewardText = document.querySelector<HTMLElement>('[data-reward]');
 const expeditionsText = document.querySelector<HTMLElement>('[data-expeditions]');
 const upgradeList = document.querySelector<HTMLElement>('[data-upgrade-list]');
 const fleetList = document.querySelector<HTMLElement>('[data-fleet-list]');
+const achievementList = document.querySelector<HTMLElement>('[data-achievement-list]');
+const achievementCount = document.querySelector<HTMLElement>('[data-achievement-count]');
 const nextExpeditionButton = document.querySelector<HTMLButtonElement>('[data-next-expedition]');
 const contractTitle = document.querySelector<HTMLElement>('[data-contract-title]');
 const pauseToggle = document.querySelector<HTMLButtonElement>('[data-pause-toggle]');
@@ -116,6 +118,12 @@ const cameraOffsets = [
   new THREE.Vector3(25, 11, 24),
 ];
 const marinaPosition = new THREE.Vector3(0, 0, 28);
+const obstacleZones = [
+  { x: -58, z: -78, radius: 16 },
+  { x: 88, z: -24, radius: 13 },
+  { x: 34, z: 96, radius: 18 },
+  { x: -118, z: 64, radius: 22 },
+];
 
 let water: InstanceType<typeof Water>;
 let underwaterSurface: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshStandardMaterial>;
@@ -190,6 +198,8 @@ let renderScale = maxRenderPixelRatio;
 let qualityCheckAt = 8;
 let isPaused = false;
 let manualQuality = false;
+let lastImpactAt = -10;
+let cameraImpulse = 0;
 const expeditionContracts: Array<{ name: string; reward: number; weather: WeatherKey; briefing: string }> = [
   { name: 'Bluewater Survey', reward: 850, weather: 'bluewater', briefing: 'Chart the outer markers and recover the lost research beacon.' },
   { name: 'Storm Relay', reward: 1150, weather: 'storm', briefing: 'Restore the navigation relay before the storm closes the channel.' },
@@ -388,6 +398,17 @@ class OceanMusic {
     this.step += 1;
   }
 
+  playCue(type: 'signal' | 'recovery' | 'purchase' | 'impact' | 'achievement') {
+    const now = this.context.currentTime;
+    if (type === 'impact') {
+      this.playNote(92, now, 0.28, 0.12, 'sawtooth');
+      this.playNote(58, now + 0.05, 0.42, 0.09, 'triangle');
+      return;
+    }
+    const notes = type === 'signal' ? [440, 659] : type === 'recovery' ? [330, 494, 740] : type === 'purchase' ? [392, 523] : [523, 659, 784];
+    notes.forEach((frequency, index) => this.playNote(frequency, now + index * 0.08, 0.32, 0.075, 'sine'));
+  }
+
   private playNote(frequency: number, start: number, duration: number, peak: number, type: OscillatorType) {
     const oscillator = this.context.createOscillator();
     const gain = this.context.createGain();
@@ -429,8 +450,9 @@ async function initialize() {
   selectWeather(expeditionContracts[activeContractIndex].weather, false);
   updateHud();
 
-  if (qaMode === 'harbor' || qaMode === 'fleet') {
+  if (qaMode === 'harbor' || qaMode === 'fleet' || qaMode === 'achievements') {
     progress.credits = Math.max(progress.credits, qaMode === 'fleet' ? 2500 : expeditionContracts[activeContractIndex].reward);
+    if (qaMode === 'achievements') progress.achievements = Object.keys(ACHIEVEMENT_CATALOG) as AchievementKey[];
     rewardGranted = true;
     expeditionComplete = true;
     renderHarbor();
@@ -446,6 +468,11 @@ async function initialize() {
     enterSwimMode();
     swimmer.position.copy(diveStart);
     swimmerBody.setTranslation({ x: diveStart.x, y: diveStart.y, z: diveStart.z }, true);
+  } else if (qaMode === 'impact') {
+    heading = 0;
+    speed = 20;
+    throttleValue = 1;
+    boatBody.setTranslation({ x: -58, y: 0.2, z: -60 }, true);
   }
 
   loading?.classList.add('is-hidden');
@@ -708,6 +735,7 @@ function createPhysics() {
     .setTranslation(0, 0.2, 20)
     .setLinearDamping(0.9)
     .setAngularDamping(4.5)
+    .setCcdEnabled(true)
     .setCanSleep(false)
     .enabledRotations(false, true, false);
 
@@ -723,10 +751,7 @@ function createPhysics() {
   );
   physicsWorld.createCollider(RAPIER.ColliderDesc.capsule(0.62, 0.32).setSensor(true), swimmerBody);
 
-  createObstacleCollider(-58, -78, 16);
-  createObstacleCollider(88, -24, 13);
-  createObstacleCollider(34, 96, 18);
-  createObstacleCollider(-118, 64, 22);
+  obstacleZones.forEach((zone) => createObstacleCollider(zone.x, zone.z, zone.radius));
 
   missionSignals.forEach((signal) => {
     signal.sensor = physicsWorld.createCollider(
@@ -1389,11 +1414,19 @@ function updateBoat(delta: number) {
     .copy(windDirection)
     .multiplyScalar((0.08 + currentSea.windKnots * 0.01) * (1 + Math.abs(speed) * 0.012));
   const velocity = forward.multiplyScalar(speed).add(sideDrift);
+  const requestedVelocity = velocity.length();
   boatBody.setLinvel({ x: velocity.x, y: 0, z: velocity.z }, true);
   physicsWorld.timestep = delta;
   physicsWorld.step();
 
+  const resolvedVelocity = boatBody.linvel();
+  const impactLoss = requestedVelocity - Math.hypot(resolvedVelocity.x, resolvedVelocity.z);
+  if (impactLoss > 3.2 && Math.abs(speed) > 5 && gameTime - lastImpactAt > 0.8) {
+    triggerHullImpact(impactLoss);
+  }
+
   const bodyPosition = boatBody.translation();
+  resolveIslandCollision(bodyPosition);
   const ocean = sampleOcean(bodyPosition.x, bodyPosition.z, gameTime);
   const y = ocean.height + 0.18;
   boatBody.setTranslation({ x: bodyPosition.x, y, z: bodyPosition.z }, true);
@@ -1431,6 +1464,31 @@ function updateBoat(delta: number) {
   }
 }
 
+function resolveIslandCollision(bodyPosition: { x: number; y: number; z: number }) {
+  obstacleZones.forEach((zone) => {
+    const dx = bodyPosition.x - zone.x;
+    const dz = bodyPosition.z - zone.z;
+    const distance = Math.hypot(dx, dz);
+    const limit = zone.radius * 0.74 + 4.2;
+    if (distance >= limit) return;
+    const nx = distance > 0.001 ? dx / distance : 1;
+    const nz = distance > 0.001 ? dz / distance : 0;
+    bodyPosition.x = zone.x + nx * limit;
+    bodyPosition.z = zone.z + nz * limit;
+    boatBody.setTranslation(bodyPosition, true);
+    if (Math.abs(speed) > 4) triggerHullImpact(Math.abs(speed) * 0.7);
+  });
+}
+
+function triggerHullImpact(strength: number) {
+  if (gameTime - lastImpactAt <= 0.8) return;
+  lastImpactAt = gameTime;
+  cameraImpulse = Math.min(1, strength / 12);
+  speed *= 0.32;
+  music?.playCue('impact');
+  setNotice('Hull impact. Reduce speed near reefs.');
+}
+
 function updateSwimmer(delta: number) {
   if (playerMode !== 'swim') return;
 
@@ -1453,6 +1511,7 @@ function updateSwimmer(delta: number) {
   const floor = seabedHeight(swimmer.position.x, swimmer.position.z) + 1.05;
   swimmer.position.y = THREE.MathUtils.clamp(swimmer.position.y, floor, surface + 0.15);
   const depth = Math.max(0, surface - swimmer.position.y);
+  if (depth > 10) unlockAchievement('deep_diver');
   const airDrain = 0.82 / (1 + progress.upgrades.tank * 0.25);
   oxygen = THREE.MathUtils.clamp(oxygen + (depth < 0.35 ? 14 : -airDrain) * delta, 0, 100);
 
@@ -1506,6 +1565,7 @@ function updateMissions(delta: number) {
         awaitingDiveRecovery = false;
         awaitingHarbor = true;
         recoveryBeacon.visible = false;
+        music?.playCue('recovery');
         setNotice('Research beacon secured. Board Aurora and return to the marina.');
       }
     }
@@ -1521,6 +1581,9 @@ function updateMissions(delta: number) {
   if (distance < 7.4) {
     current.collected = true;
     missionIndex += 1;
+    music?.playCue('signal');
+    if (missionIndex === 1) unlockAchievement('first_signal');
+    if (weatherKey === 'storm') unlockAchievement('storm_runner');
     if (missionIndex >= missionSignals.length) {
       awaitingDiveRecovery = true;
       setNotice('Final signal found. Dive below and recover the research beacon.');
@@ -1542,6 +1605,7 @@ function completeExpedition() {
     progress.expeditions += 1;
     rewardGranted = true;
     saveProgress(progress);
+    unlockAchievement('expedition_complete');
   }
   renderHarbor();
   harbor?.classList.add('is-open');
@@ -1557,6 +1621,7 @@ function renderHarbor() {
   if (contractTitle) contractTitle.textContent = contract.name;
   if (expeditionsText) expeditionsText.textContent = `${progress.expeditions} expedition${progress.expeditions === 1 ? '' : 's'} completed`;
   renderFleet();
+  renderAchievements();
   if (!upgradeList) return;
   upgradeList.replaceChildren();
   (Object.keys(UPGRADE_CATALOG) as UpgradeKey[]).forEach((key) => {
@@ -1576,6 +1641,28 @@ function renderHarbor() {
     article.append(button);
     upgradeList.append(article);
   });
+}
+
+function renderAchievements() {
+  if (achievementCount) achievementCount.textContent = progress.achievements.length.toString();
+  if (!achievementList) return;
+  achievementList.replaceChildren();
+  (Object.keys(ACHIEVEMENT_CATALOG) as AchievementKey[]).forEach((key) => {
+    const item = ACHIEVEMENT_CATALOG[key];
+    const unlocked = progress.achievements.includes(key);
+    const badge = document.createElement('div');
+    badge.className = `achievement${unlocked ? ' is-unlocked' : ''}`;
+    badge.innerHTML = `<span>${unlocked ? 'Logged' : 'Unknown'}</span><strong>${unlocked ? item.name : 'Undiscovered'}</strong><small>${unlocked ? item.description : 'Continue exploring to reveal this entry.'}</small>`;
+    achievementList.append(badge);
+  });
+}
+
+function unlockAchievement(key: AchievementKey) {
+  if (progress.achievements.includes(key)) return;
+  progress.achievements.push(key);
+  saveProgress(progress);
+  music?.playCue('achievement');
+  setNotice(`Captain's log updated: ${ACHIEVEMENT_CATALOG[key].name}.`);
 }
 
 function renderFleet() {
@@ -1605,9 +1692,11 @@ async function purchaseOrEquipBoat(key: BoatKey) {
     if (progress.credits < boat.price) return;
     progress.credits -= boat.price;
     progress.ownedBoats.push(key);
+    unlockAchievement('fleet_owner');
   }
   progress.activeBoat = key;
   saveProgress(progress);
+  music?.playCue('purchase');
   await loadActiveYacht();
   renderHarbor();
   setNotice(`${boat.name} equipped for the next expedition.`);
@@ -1621,6 +1710,7 @@ function purchaseUpgrade(key: UpgradeKey) {
   progress.credits -= cost;
   progress.upgrades[key] += 1;
   saveProgress(progress);
+  music?.playCue('purchase');
   renderHarbor();
   setNotice(`${item.name} upgraded to level ${progress.upgrades[key]}.`);
 }
@@ -1880,6 +1970,7 @@ function updateCamera(delta: number) {
     cameraTarget.copy(swimmer.position).addScaledVector(tmpVectorE, 3.2);
     cameraTarget.y += 0.18;
     camera.position.lerp(tmpVectorD, 1 - Math.pow(0.002, delta));
+    applyCameraImpulse(delta);
     camera.lookAt(cameraTarget);
     return;
   }
@@ -1889,7 +1980,15 @@ function updateCamera(delta: number) {
   cameraTarget.copy(yacht.position);
   cameraTarget.y += 3.5;
   camera.position.lerp(tmpVectorD, 1 - Math.pow(0.001, delta));
+  applyCameraImpulse(delta);
   camera.lookAt(cameraTarget);
+}
+
+function applyCameraImpulse(delta: number) {
+  if (cameraImpulse < 0.001) return;
+  camera.position.x += Math.sin(gameTime * 88) * cameraImpulse * 0.35;
+  camera.position.y += Math.sin(gameTime * 113) * cameraImpulse * 0.22;
+  cameraImpulse = THREE.MathUtils.damp(cameraImpulse, 0, 7, delta);
 }
 
 function updateHud() {
