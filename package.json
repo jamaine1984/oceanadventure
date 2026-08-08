@@ -7,7 +7,7 @@
     "dev": "vite --host 0.0.0.0 --port 5174",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host 0.0.0.0 --port 4174",
-    "make:assets": "python scripts/create_assets.py",
+    "make:assets": "node scripts/run_blender.mjs",
     "cf:projects": "wrangler pages project list",
     "cf:deploy": "npm run build && wrangler pages deploy dist --project-name ocean-adventure-game --branch main"
   },

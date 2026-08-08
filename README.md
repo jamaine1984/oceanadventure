@@ -1,6 +1,6 @@
-# Ocean Adventure Game
+# Ocean Adventure
 
-Standalone Three.js and Rapier ocean adventure game.
+A standalone Three.js and Rapier expedition game with a Blender-authored yacht, helm controls, underwater exploration, procedural music, and live sea and weather states.
 
 ## Run
 
@@ -11,6 +11,35 @@ npm run dev
 
 Open `http://localhost:5174/`.
 
+## Controls
+
+### Yacht
+
+- `W` / `S`: throttle and reverse
+- `A` / `D`: steer
+- `Shift`: boost
+- `C`: change chase camera
+- `E`: enter dive mode
+- `R`: reset Aurora
+
+### Diver
+
+- `W` / `S`: swim forward and backward
+- `A` / `D`: turn
+- `Space`: rise
+- `Ctrl`: descend
+- `Shift`: swim boost
+- `E`: return to the helm
+
+### Environment
+
+- `1`: Calm sea
+- `2`: Bluewater sea
+- `3`: Storm sea
+- `M`: music on or off
+
+The on-screen Dive, weather, music, and touch controls provide the same core actions without a keyboard.
+
 ## Build
 
 ```powershell
@@ -19,29 +48,34 @@ npm run build
 
 ## Work From Another Computer
 
-After this project is pushed to GitHub:
-
 ```powershell
-git clone https://github.com/jamaine1984/ocean-adventure-game.git
-cd ocean-adventure-game
+git clone https://github.com/jamaine1984/oceanadventure.git
+cd oceanadventure
 npm install
 npm run dev
 ```
 
-GitHub should be the source of truth for editing. Cloudflare Pages should be connected to that GitHub repo for hosting and automatic deploys.
+GitHub is the source of truth for editing. Cloudflare Pages can connect to the repository for automatic hosting deployments.
 
-Cloudflare Pages build settings:
+Cloudflare Pages settings:
 
 - Build command: `npm run build`
 - Output directory: `dist`
 - Production branch: `main`
 
-## Assets
+## Blender Assets
 
-The yacht is authored by `scripts/create_assets.py` through Blender and exported as `public/models/expedition_yacht.glb`. The editable Blender source is kept at `assets/blender/ocean_adventure_yacht.blend`.
+The active vessel is the 42-meter Aurora explorer yacht. Blender exports both the yacht and the playable diver from one authored source:
 
-To regenerate the asset:
+- `assets/blender/aurora_explorer_yacht.blend`
+- `public/models/aurora_explorer_yacht.glb`
+- `public/models/explorer_diver.glb`
+- `scripts/create_aurora_assets.py`
+
+Regenerate the assets and studio preview with Blender 5.1:
 
 ```powershell
-& 'C:\Program Files\Blender Foundation\Blender 5.1\blender.exe' --background --python scripts\create_assets.py
+npm run make:assets
 ```
+
+The original expedition yacht remains in the repository as a previous asset version.

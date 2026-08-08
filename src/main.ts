@@ -5,8 +5,11 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { Sky } from 'three/examples/jsm/objects/Sky.js';
 import { Water } from 'three/examples/jsm/objects/Water.js';
+import { WEATHER_PRESETS, cloneSeaState, dampSeaState, type WeatherKey } from './sea-config';
+import { UPGRADE_CATALOG, loadProgress, saveProgress, upgradeCost, type UpgradeKey } from './progression';
 
 type KeyMap = Record<string, boolean>;
+type PlayerMode = 'helm' | 'swim';
 
 type MissionSignal = {
   name: string;
@@ -28,6 +31,14 @@ type WindStreak = {
   speed: number;
 };
 
+type FishAgent = {
+  radius: number;
+  speed: number;
+  phase: number;
+  height: number;
+};
+
+const gameRoot = document.querySelector<HTMLElement>('#game-root');
 const host = document.querySelector<HTMLDivElement>('#canvas-host');
 const loading = document.querySelector<HTMLElement>('[data-loading]');
 const objectiveText = document.querySelector<HTMLElement>('[data-objective]');
@@ -39,8 +50,21 @@ const fpsText = document.querySelector<HTMLElement>('[data-fps]');
 const progressText = document.querySelector<HTMLElement>('[data-progress]');
 const notice = document.querySelector<HTMLElement>('[data-notice]');
 const musicToggle = document.querySelector<HTMLButtonElement>('[data-music-toggle]');
+const modeToggle = document.querySelector<HTMLButtonElement>('[data-mode-toggle]');
+const modeText = document.querySelector<HTMLElement>('[data-mode]');
+const depthText = document.querySelector<HTMLElement>('[data-depth]');
+const airText = document.querySelector<HTMLElement>('[data-air]');
+const airStatus = document.querySelector<HTMLElement>('.air-status');
+const weatherButtons = document.querySelectorAll<HTMLButtonElement>('[data-weather]');
+const creditsText = document.querySelector<HTMLElement>('[data-credits]');
+const harbor = document.querySelector<HTMLElement>('[data-harbor]');
+const harborCredits = document.querySelector<HTMLElement>('[data-harbor-credits]');
+const rewardText = document.querySelector<HTMLElement>('[data-reward]');
+const expeditionsText = document.querySelector<HTMLElement>('[data-expeditions]');
+const upgradeList = document.querySelector<HTMLElement>('[data-upgrade-list]');
+const nextExpeditionButton = document.querySelector<HTMLButtonElement>('[data-next-expedition]');
 
-if (!host) {
+if (!gameRoot || !host) {
   throw new Error('Ocean Adventure canvas host is missing.');
 }
 
@@ -70,7 +94,10 @@ const tmpVectorB = new THREE.Vector3();
 const tmpVectorC = new THREE.Vector3();
 const tmpVectorD = new THREE.Vector3();
 const tmpVectorE = new THREE.Vector3();
+const tmpVectorF = new THREE.Vector3();
 const tmpQuaternion = new THREE.Quaternion();
+const tmpMatrix = new THREE.Matrix4();
+const tmpColor = new THREE.Color();
 const waveNormal = new THREE.Vector3();
 const yawEuler = new THREE.Euler(0, 0, 0, 'YXZ');
 const cameraTarget = new THREE.Vector3();
@@ -78,19 +105,40 @@ const sternBase = new THREE.Vector3();
 const sternLeft = new THREE.Vector3();
 const sternRight = new THREE.Vector3();
 const cameraOffsets = [
-  new THREE.Vector3(0, 8.6, 25),
-  new THREE.Vector3(0, 17, 39),
-  new THREE.Vector3(18, 8, 18),
+  new THREE.Vector3(0, 10.5, 32),
+  new THREE.Vector3(0, 21, 49),
+  new THREE.Vector3(25, 11, 24),
 ];
 
 let water: InstanceType<typeof Water>;
+let underwaterSurface: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshStandardMaterial>;
 let sky: InstanceType<typeof Sky>;
 let sun = new THREE.Vector3();
 let pmremTarget: THREE.WebGLRenderTarget | undefined;
+let hemisphereLight: THREE.HemisphereLight;
+let sunLight: THREE.DirectionalLight;
+let underwaterLight: THREE.PointLight;
+let sunGlow: THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>;
 let physicsWorld: RAPIER.World;
 let boatBody: RAPIER.RigidBody;
+let swimmerBody: RAPIER.RigidBody;
 let yacht: THREE.Group;
 let yachtVisual: THREE.Object3D | undefined;
+let swimmer: THREE.Group;
+let swimmerVisual: THREE.Object3D | undefined;
+let swimmerLeftLeg: THREE.Object3D | undefined;
+let swimmerRightLeg: THREE.Object3D | undefined;
+let swimmerLeftArm: THREE.Object3D | undefined;
+let swimmerRightArm: THREE.Object3D | undefined;
+let bubblePoints: THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial>;
+let bubblePositions = new Float32Array(0);
+let rainLines: THREE.LineSegments<THREE.BufferGeometry, THREE.LineBasicMaterial>;
+let rainPositions = new Float32Array(0);
+let cloudMaterial: THREE.SpriteMaterial;
+let causticMaterial: THREE.ShaderMaterial | undefined;
+let causticsMesh: THREE.Mesh | undefined;
+let fishSchool: THREE.InstancedMesh | undefined;
+let fishAgents: FishAgent[] = [];
 let speed = 0;
 let heading = 0;
 let throttleValue = 0;
@@ -109,13 +157,58 @@ let measuredFps = 60;
 let wakeSideToggle = false;
 let music: OceanMusic | undefined;
 let musicStarting = false;
+let playerMode: PlayerMode = 'helm';
+let swimYaw = 0;
+let swimSpeed = 0;
+let oxygen = 100;
+let cameraUnderwater = false;
+let lightningFlash = 0;
+let nextLightningAt = 7;
+let weatherKey: WeatherKey = 'bluewater';
+let currentSea = cloneSeaState(WEATHER_PRESETS.bluewater);
+let targetSea = cloneSeaState(WEATHER_PRESETS.bluewater);
+const progress = loadProgress();
+let expeditionComplete = false;
+let rewardGranted = false;
+const EXPEDITION_REWARD = 850;
 
 const windDirection = new THREE.Vector3(0.58, 0, -0.82).normalize();
-const windKnots = 15;
+const currentWaterColor = new THREE.Color(WEATHER_PRESETS.bluewater.waterColor);
+const currentFogColor = new THREE.Color(WEATHER_PRESETS.bluewater.fogColor);
+const currentCloudColor = new THREE.Color(WEATHER_PRESETS.bluewater.cloudColor);
+const underwaterBackground = new THREE.Color(0x073744);
+const waterWaveUniforms = {
+  uWaveTime: { value: 0 },
+  uPrimaryWave: {
+    value: new THREE.Vector4(
+      currentSea.primaryFrequencyX,
+      currentSea.primaryFrequencyZ,
+      currentSea.primaryAmplitude,
+      currentSea.primarySpeed,
+    ),
+  },
+  uCrossWave: {
+    value: new THREE.Vector4(
+      currentSea.crossFrequencyX,
+      currentSea.crossFrequencyZ,
+      currentSea.crossAmplitude,
+      currentSea.crossSpeed,
+    ),
+  },
+  uChopWave: {
+    value: new THREE.Vector4(
+      currentSea.chopFrequencyX,
+      currentSea.chopFrequencyZ,
+      currentSea.chopAmplitude,
+      currentSea.chopSpeed,
+    ),
+  },
+};
 const wakeParticles: WakeParticle[] = [];
 const wakeMeshPool: Array<THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>> = [];
 const windStreaks: WindStreak[] = [];
 const missionSignals: MissionSignal[] = [];
+const surfaceOnlyObjects: THREE.Object3D[] = [];
 let foamTexture: THREE.CanvasTexture | undefined;
 const wakeGeometry = new THREE.PlaneGeometry(1, 1);
 const wakeMaterial = new THREE.MeshBasicMaterial({
@@ -147,6 +240,8 @@ const npcCopy = [
 class OceanMusic {
   private context: AudioContext;
   private master: GainNode;
+  private ambienceFilter: BiquadFilterNode;
+  private windGain: GainNode;
   private delay: DelayNode;
   private delayFeedback: GainNode;
   private sequenceTimer = 0;
@@ -158,6 +253,11 @@ class OceanMusic {
     this.context = new AudioContext();
     this.master = this.context.createGain();
     this.master.gain.value = 0.0001;
+    this.ambienceFilter = this.context.createBiquadFilter();
+    this.ambienceFilter.type = 'lowpass';
+    this.ambienceFilter.frequency.value = 18000;
+    this.windGain = this.context.createGain();
+    this.windGain.gain.value = 0.025;
 
     this.delay = this.context.createDelay(1.2);
     this.delay.delayTime.value = 0.34;
@@ -166,7 +266,8 @@ class OceanMusic {
     this.delay.connect(this.delayFeedback);
     this.delayFeedback.connect(this.delay);
     this.delay.connect(this.master);
-    this.master.connect(this.context.destination);
+    this.master.connect(this.ambienceFilter);
+    this.ambienceFilter.connect(this.context.destination);
   }
 
   async start() {
@@ -191,6 +292,13 @@ class OceanMusic {
 
   isOn() {
     return !this.muted;
+  }
+
+  setEnvironment(submerged: boolean, stormAmount: number) {
+    const now = this.context.currentTime;
+    const cutoff = submerged ? 720 : 18000 - stormAmount * 5200;
+    this.ambienceFilter.frequency.setTargetAtTime(cutoff, now, 0.32);
+    this.windGain.gain.setTargetAtTime(0.018 + stormAmount * 0.052, now, 0.5);
   }
 
   private startPad() {
@@ -233,16 +341,14 @@ class OceanMusic {
 
     const source = this.context.createBufferSource();
     const filter = this.context.createBiquadFilter();
-    const gain = this.context.createGain();
     source.buffer = buffer;
     source.loop = true;
     filter.type = 'bandpass';
     filter.frequency.value = 900;
     filter.Q.value = 0.42;
-    gain.gain.value = 0.025;
     source.connect(filter);
-    filter.connect(gain);
-    gain.connect(this.master);
+    filter.connect(this.windGain);
+    this.windGain.connect(this.master);
     source.start();
   }
 
@@ -287,40 +393,48 @@ async function initialize() {
   await createOceanAndSky();
   createWorld();
   await createYacht();
+  await createSwimmer();
   createPhysics();
   createInput();
+  selectWeather('bluewater', false);
   updateHud();
+
+  if (location.hostname === 'localhost' && new URLSearchParams(location.search).get('qa') === 'harbor') {
+    progress.credits = Math.max(progress.credits, EXPEDITION_REWARD);
+    rewardGranted = true;
+    expeditionComplete = true;
+    renderHarbor();
+    harbor?.classList.add('is-open');
+    harbor?.setAttribute('aria-hidden', 'false');
+  }
 
   loading?.classList.add('is-hidden');
   renderer.setAnimationLoop(tick);
 }
 
 function createLighting() {
-  const hemi = new THREE.HemisphereLight(0xb7e8ff, 0x0a283b, 1.2);
-  scene.add(hemi);
+  hemisphereLight = new THREE.HemisphereLight(0xb7e8ff, 0x0a283b, 1.2);
+  scene.add(hemisphereLight);
 
-  const sunLight = new THREE.DirectionalLight(0xfff2ce, 4.2);
+  sunLight = new THREE.DirectionalLight(0xfff2ce, 4.2);
   sunLight.position.set(-70, 130, -80);
-  sunLight.castShadow = true;
-  sunLight.shadow.mapSize.set(1024, 1024);
-  sunLight.shadow.camera.left = -90;
-  sunLight.shadow.camera.right = 90;
-  sunLight.shadow.camera.top = 90;
-  sunLight.shadow.camera.bottom = -90;
   scene.add(sunLight);
 
-  const glow = new THREE.Mesh(
+  underwaterLight = new THREE.PointLight(0x6de6e1, 0, 54, 1.5);
+  scene.add(underwaterLight);
+
+  sunGlow = new THREE.Mesh(
     new THREE.SphereGeometry(4.5, 32, 16),
     new THREE.MeshBasicMaterial({ color: 0xffe09b, transparent: true, opacity: 0.9 }),
   );
-  glow.name = 'visible_sun';
-  glow.position.set(-190, 240, -410);
-  scene.add(glow);
+  sunGlow.name = 'visible_sun';
+  sunGlow.position.set(-190, 240, -410);
+  scene.add(sunGlow);
 }
 
 async function createOceanAndSky() {
   const waterNormals = await loadWaterNormals();
-  const waterGeometry = new THREE.PlaneGeometry(18000, 18000, 24, 24);
+  const waterGeometry = new THREE.PlaneGeometry(4000, 4000, 192, 192);
 
   water = new Water(waterGeometry, {
     textureWidth: 512,
@@ -334,6 +448,28 @@ async function createOceanAndSky() {
   });
   water.name = 'reflective_ocean';
   water.rotation.x = -Math.PI / 2;
+  water.material.side = THREE.DoubleSide;
+  water.material.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, waterWaveUniforms);
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+        uniform float uWaveTime;
+        uniform vec4 uPrimaryWave;
+        uniform vec4 uCrossWave;
+        uniform vec4 uChopWave;`,
+      )
+      .replace(
+        '#include <begin_vertex>',
+        `vec3 transformed = vec3(position);
+        float worldZ = -position.y;
+        transformed.z += sin(position.x * uPrimaryWave.x + worldZ * uPrimaryWave.y + uWaveTime * uPrimaryWave.w) * uPrimaryWave.z;
+        transformed.z += sin(position.x * uCrossWave.x + worldZ * uCrossWave.y + uWaveTime * uCrossWave.w) * uCrossWave.z;
+        transformed.z += sin(position.x * uChopWave.x + worldZ * uChopWave.y + uWaveTime * uChopWave.w) * uChopWave.z;`,
+      );
+  };
+  water.material.needsUpdate = true;
   water.receiveShadow = true;
   const renderWaterReflection = water.onBeforeRender.bind(water);
   let reflectionFrame = 0;
@@ -345,24 +481,63 @@ async function createOceanAndSky() {
   };
   scene.add(water);
 
+  const underwaterSurfaceMaterial = new THREE.MeshStandardMaterial({
+    color: 0x2b8493,
+    transparent: true,
+    opacity: 0.76,
+    roughness: 0.28,
+    metalness: 0.08,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+    fog: true,
+  });
+  underwaterSurfaceMaterial.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, waterWaveUniforms);
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+        uniform float uWaveTime;
+        uniform vec4 uPrimaryWave;
+        uniform vec4 uCrossWave;
+        uniform vec4 uChopWave;`,
+      )
+      .replace(
+        '#include <begin_vertex>',
+        `vec3 transformed = vec3(position);
+        float worldZ = -position.y;
+        transformed.z += sin(position.x * uPrimaryWave.x + worldZ * uPrimaryWave.y + uWaveTime * uPrimaryWave.w) * uPrimaryWave.z;
+        transformed.z += sin(position.x * uCrossWave.x + worldZ * uCrossWave.y + uWaveTime * uCrossWave.w) * uCrossWave.z;
+        transformed.z += sin(position.x * uChopWave.x + worldZ * uChopWave.y + uWaveTime * uChopWave.w) * uChopWave.z;`,
+      );
+  };
+  underwaterSurface = new THREE.Mesh(waterGeometry.clone(), underwaterSurfaceMaterial);
+  underwaterSurface.name = 'underwater_wave_ceiling';
+  underwaterSurface.rotation.x = -Math.PI / 2;
+  underwaterSurface.position.y = 0.025;
+  underwaterSurface.visible = false;
+  underwaterSurface.renderOrder = 2;
+  scene.add(underwaterSurface);
+
   sky = new Sky();
   sky.name = 'physical_sky';
   sky.scale.setScalar(10000);
   scene.add(sky);
 
   const skyUniforms = sky.material.uniforms;
-  skyUniforms.turbidity.value = 8.4;
-  skyUniforms.rayleigh.value = 2.4;
-  skyUniforms.mieCoefficient.value = 0.006;
-  skyUniforms.mieDirectionalG.value = 0.82;
+  skyUniforms.turbidity.value = currentSea.turbidity;
+  skyUniforms.rayleigh.value = currentSea.rayleigh;
+  skyUniforms.mieCoefficient.value = currentSea.mieCoefficient;
+  skyUniforms.mieDirectionalG.value = currentSea.mieDirectionalG;
   if (skyUniforms.cloudCoverage) skyUniforms.cloudCoverage.value = 0.28;
   if (skyUniforms.cloudDensity) skyUniforms.cloudDensity.value = 0.35;
   if (skyUniforms.cloudElevation) skyUniforms.cloudElevation.value = 0.42;
 
-  setSun(8, 176);
+  setSun(currentSea.sunElevation, currentSea.sunAzimuth);
 
   createClouds();
   createWindStreaks();
+  createStormRain();
 }
 
 async function loadWaterNormals() {
@@ -417,16 +592,21 @@ function setSun(elevation: number, azimuth: number) {
   sun.setFromSphericalCoords(1, phi, theta);
   sky.material.uniforms.sunPosition.value.copy(sun);
   water.material.uniforms.sunDirection.value.copy(sun).normalize();
+  sunGlow.position.copy(sun).multiplyScalar(620);
+  sunLight.position.copy(sun).multiplyScalar(500);
 
   if (pmremTarget) {
     pmremTarget.dispose();
   }
   const pmremGenerator = new THREE.PMREMGenerator(renderer);
   const envScene = new THREE.Scene();
+  const skyWasVisible = sky.visible;
+  sky.visible = true;
   envScene.add(sky);
   pmremTarget = pmremGenerator.fromScene(envScene);
   scene.environment = pmremTarget.texture;
   scene.add(sky);
+  sky.visible = skyWasVisible;
   pmremGenerator.dispose();
 }
 
@@ -436,15 +616,15 @@ async function createYacht() {
   scene.add(yacht);
 
   const loader = new GLTFLoader();
-  const gltf = await loader.loadAsync('/models/expedition_yacht.glb');
+  const gltf = await loader.loadAsync('/models/aurora_explorer_yacht.glb');
   yachtVisual = gltf.scene;
-  yachtVisual.name = 'blender_expedition_yacht';
+  yachtVisual.name = 'blender_aurora_explorer_yacht';
   yachtVisual.traverse((node) => {
     if (node instanceof THREE.Mesh) {
       node.castShadow = true;
       node.receiveShadow = true;
       if (node.material instanceof THREE.MeshStandardMaterial) {
-        node.material.envMapIntensity = 0.95;
+        node.material.envMapIntensity = 1.15;
       }
     }
   });
@@ -452,20 +632,49 @@ async function createYacht() {
   yacht.add(yachtVisual);
 }
 
+async function createSwimmer() {
+  swimmer = new THREE.Group();
+  swimmer.name = 'player_diver';
+  swimmer.visible = false;
+  scene.add(swimmer);
+
+  const loader = new GLTFLoader();
+  const gltf = await loader.loadAsync('/models/explorer_diver.glb');
+  swimmerVisual = gltf.scene;
+  swimmerVisual.name = 'blender_explorer_diver';
+  swimmerVisual.rotation.y = Math.PI;
+  swimmerVisual.traverse((node) => {
+    if (node instanceof THREE.Mesh && node.material instanceof THREE.MeshStandardMaterial) {
+      node.material.envMapIntensity = 0.72;
+    }
+  });
+  swimmer.add(swimmerVisual);
+  swimmerLeftLeg = swimmerVisual.getObjectByName('diver_left_leg');
+  swimmerRightLeg = swimmerVisual.getObjectByName('diver_right_leg');
+  swimmerLeftArm = swimmerVisual.getObjectByName('diver_left_arm');
+  swimmerRightArm = swimmerVisual.getObjectByName('diver_right_arm');
+  createBubbleField();
+}
+
 function createPhysics() {
   const bodyDesc = RAPIER.RigidBodyDesc.dynamic()
-    .setTranslation(0, 2, 20)
+    .setTranslation(0, 0.2, 20)
     .setLinearDamping(0.9)
     .setAngularDamping(4.5)
     .setCanSleep(false)
     .enabledRotations(false, true, false);
 
   boatBody = physicsWorld.createRigidBody(bodyDesc);
-  const hullCollider = RAPIER.ColliderDesc.cuboid(3.0, 1.35, 9.6)
+  const hullCollider = RAPIER.ColliderDesc.cuboid(3.35, 1.7, 13.5)
     .setFriction(0.22)
     .setRestitution(0.02)
     .setDensity(1.15);
   physicsWorld.createCollider(hullCollider, boatBody);
+
+  swimmerBody = physicsWorld.createRigidBody(
+    RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(0, -1000, 0),
+  );
+  physicsWorld.createCollider(RAPIER.ColliderDesc.capsule(0.62, 0.32).setSensor(true), swimmerBody);
 
   createObstacleCollider(-58, -78, 16);
   createObstacleCollider(88, -24, 13);
@@ -505,6 +714,7 @@ function createWorld() {
   });
 
   createFloatingDebris();
+  createUnderwaterWorld();
 }
 
 function createIsland(position: THREE.Vector3, radius: number, phase: number) {
@@ -553,6 +763,7 @@ function createIsland(position: THREE.Vector3, radius: number, phase: number) {
   foamRing.rotation.x = Math.PI / 2;
   foamRing.position.y = 0.08;
   group.add(foamRing);
+  surfaceOnlyObjects.push(foamRing);
 
   for (let i = 0; i < 9; i += 1) {
     const angle = (i / 9) * Math.PI * 2 + phase;
@@ -637,6 +848,7 @@ function createSignalBuoy(position: THREE.Vector3, index: number): MissionSignal
   halo.rotation.x = Math.PI / 2;
   halo.position.y = 0.28;
   group.add(halo);
+  surfaceOnlyObjects.push(halo);
 
   return {
     name: `Signal ${index + 1}`,
@@ -677,28 +889,228 @@ function createFloatingDebris() {
   });
 }
 
+function createUnderwaterWorld() {
+  const seabedGeometry = new THREE.PlaneGeometry(3200, 3200, 128, 128);
+  const positions = seabedGeometry.attributes.position as THREE.BufferAttribute;
+  for (let index = 0; index < positions.count; index += 1) {
+    const x = positions.getX(index);
+    const z = positions.getY(index);
+    positions.setZ(index, seabedHeight(x, z) + 18);
+  }
+  seabedGeometry.computeVertexNormals();
+  const seabed = new THREE.Mesh(
+    seabedGeometry,
+    new THREE.MeshStandardMaterial({ color: 0x486e68, roughness: 0.92, metalness: 0 }),
+  );
+  seabed.name = 'explorable_seabed';
+  seabed.rotation.x = -Math.PI / 2;
+  seabed.position.y = -18;
+  seabed.receiveShadow = true;
+  scene.add(seabed);
+
+  causticMaterial = new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+    uniforms: { uTime: { value: 0 }, uOpacity: { value: 0 } },
+    vertexShader: `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      varying vec2 vUv;
+      uniform float uTime;
+      uniform float uOpacity;
+      void main() {
+        vec2 p = vUv * 180.0;
+        float a = sin(p.x + uTime * 1.6) + sin(p.y * 1.14 - uTime * 1.1);
+        float b = sin((p.x + p.y) * 0.72 + uTime * 1.35);
+        float bands = smoothstep(1.46, 1.9, a + b);
+        gl_FragColor = vec4(0.2, 0.78, 0.72, bands * uOpacity);
+      }
+    `,
+  });
+  const causticGeometry = seabedGeometry.clone();
+  const causticPositions = causticGeometry.attributes.position as THREE.BufferAttribute;
+  for (let index = 0; index < causticPositions.count; index += 1) {
+    causticPositions.setZ(index, causticPositions.getZ(index) + 0.045);
+  }
+  causticsMesh = new THREE.Mesh(causticGeometry, causticMaterial);
+  causticsMesh.name = 'animated_underwater_caustics';
+  causticsMesh.rotation.x = -Math.PI / 2;
+  causticsMesh.position.y = -18;
+  causticsMesh.visible = false;
+  scene.add(causticsMesh);
+
+  const kelpGeometry = new THREE.ConeGeometry(0.16, 2.7, 5, 2);
+  const kelp = new THREE.InstancedMesh(
+    kelpGeometry,
+    new THREE.MeshStandardMaterial({ color: 0x176b57, roughness: 0.78, side: THREE.DoubleSide }),
+    76,
+  );
+  kelp.name = 'kelp_field';
+  const coral = new THREE.InstancedMesh(
+    new THREE.DodecahedronGeometry(0.55, 0),
+    new THREE.MeshStandardMaterial({ color: 0xd17863, roughness: 0.72 }),
+    42,
+  );
+  coral.name = 'reef_coral';
+  const rocks = new THREE.InstancedMesh(
+    new THREE.IcosahedronGeometry(1, 1),
+    new THREE.MeshStandardMaterial({ color: 0x334c4e, roughness: 0.94 }),
+    50,
+  );
+  rocks.name = 'seabed_rocks';
+
+  for (let index = 0; index < 76; index += 1) {
+    const x = Math.sin(index * 12.9898) * 92 + Math.sin(index * 2.3) * 28;
+    const z = 20 + Math.cos(index * 9.133) * 94 + Math.cos(index * 1.7) * 25;
+    const height = 0.68 + ((index * 17) % 11) / 15;
+    tmpMatrix.compose(
+      tmpVector.set(x, seabedHeight(x, z) + 1.35 * height, z),
+      tmpQuaternion.setFromAxisAngle(tmpVectorB.set(0, 1, 0), index * 1.7),
+      tmpVectorC.set(0.72 + (index % 5) * 0.08, height, 0.72 + (index % 3) * 0.1),
+    );
+    kelp.setMatrixAt(index, tmpMatrix);
+  }
+  kelp.instanceMatrix.needsUpdate = true;
+
+  for (let index = 0; index < 42; index += 1) {
+    const x = Math.sin(index * 5.47) * 84;
+    const z = 20 + Math.cos(index * 7.31) * 86;
+    const scale = 0.6 + (index % 7) * 0.12;
+    tmpMatrix.compose(
+      tmpVector.set(x, seabedHeight(x, z) + scale * 0.42, z),
+      tmpQuaternion.setFromEuler(yawEuler.set(index * 0.3, index * 0.9, index * 0.18)),
+      tmpVectorB.set(scale, scale * (0.7 + (index % 3) * 0.2), scale),
+    );
+    coral.setMatrixAt(index, tmpMatrix);
+  }
+  coral.instanceMatrix.needsUpdate = true;
+
+  for (let index = 0; index < 50; index += 1) {
+    const x = Math.sin(index * 3.17) * 118;
+    const z = 20 + Math.cos(index * 4.91) * 120;
+    const scale = 0.55 + (index % 9) * 0.17;
+    tmpMatrix.compose(
+      tmpVector.set(x, seabedHeight(x, z) + scale * 0.38, z),
+      tmpQuaternion.setFromEuler(yawEuler.set(index * 0.6, index * 0.36, index * 0.24)),
+      tmpVectorB.set(scale * 1.35, scale * 0.65, scale),
+    );
+    rocks.setMatrixAt(index, tmpMatrix);
+  }
+  rocks.instanceMatrix.needsUpdate = true;
+  scene.add(kelp, coral, rocks);
+
+  const fishGeometry = new THREE.ConeGeometry(0.26, 0.9, 6);
+  fishGeometry.rotateZ(Math.PI / 2);
+  fishSchool = new THREE.InstancedMesh(
+    fishGeometry,
+    new THREE.MeshStandardMaterial({ color: 0x79d8d0, roughness: 0.42, metalness: 0.05 }),
+    28,
+  );
+  fishSchool.name = 'reef_fish_school';
+  fishAgents = Array.from({ length: 28 }, (_, index) => ({
+    radius: 18 + (index % 8) * 5.2,
+    speed: 0.11 + (index % 5) * 0.018,
+    phase: index * 0.87,
+    height: -7.5 - (index % 6) * 1.2,
+  }));
+  scene.add(fishSchool);
+}
+
+function createBubbleField() {
+  const count = 72;
+  bubblePositions = new Float32Array(count * 3);
+  bubblePositions.fill(-1000);
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(bubblePositions, 3));
+  const canvas = document.createElement('canvas');
+  canvas.width = 32;
+  canvas.height = 32;
+  const context = canvas.getContext('2d');
+  if (context) {
+    const gradient = context.createRadialGradient(13, 11, 2, 16, 16, 14);
+    gradient.addColorStop(0, 'rgba(255,255,255,0.95)');
+    gradient.addColorStop(0.28, 'rgba(184,245,255,0.45)');
+    gradient.addColorStop(0.72, 'rgba(91,210,231,0.12)');
+    gradient.addColorStop(1, 'rgba(91,210,231,0)');
+    context.fillStyle = gradient;
+    context.fillRect(0, 0, 32, 32);
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  bubblePoints = new THREE.Points(
+    geometry,
+    new THREE.PointsMaterial({
+      map: texture,
+      color: 0xc8f7ff,
+      transparent: true,
+      opacity: 0.72,
+      depthWrite: false,
+      size: 0.24,
+      sizeAttenuation: true,
+    }),
+  );
+  bubblePoints.name = 'diver_bubbles';
+  bubblePoints.visible = false;
+  scene.add(bubblePoints);
+}
+
+function createStormRain() {
+  const count = 320;
+  rainPositions = new Float32Array(count * 6);
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(rainPositions, 3));
+  rainLines = new THREE.LineSegments(
+    geometry,
+    new THREE.LineBasicMaterial({ color: 0xc5e9f3, transparent: true, opacity: 0, depthWrite: false }),
+  );
+  rainLines.name = 'storm_rain';
+  rainLines.visible = false;
+  scene.add(rainLines);
+  for (let index = 0; index < count; index += 1) resetRainDrop(index, true);
+}
+
 function createClouds() {
-  const material = new THREE.MeshStandardMaterial({
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 128;
+  const context = canvas.getContext('2d');
+  if (context) {
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    for (let index = 0; index < 22; index += 1) {
+      const x = 28 + ((index * 47) % 202);
+      const y = 45 + Math.sin(index * 1.73) * 22;
+      const radius = 20 + (index % 6) * 7;
+      const gradient = context.createRadialGradient(x, y, 0, x, y, radius);
+      gradient.addColorStop(0, 'rgba(255,255,255,0.72)');
+      gradient.addColorStop(0.48, 'rgba(255,255,255,0.42)');
+      gradient.addColorStop(1, 'rgba(255,255,255,0)');
+      context.fillStyle = gradient;
+      context.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+    }
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  cloudMaterial = new THREE.SpriteMaterial({
+    map: texture,
     color: 0xffffff,
     transparent: true,
-    opacity: 0.72,
-    roughness: 0.9,
+    opacity: currentSea.cloudOpacity,
     depthWrite: false,
   });
-  for (let i = 0; i < 12; i += 1) {
-    const group = new THREE.Group();
-    const angle = (i / 12) * Math.PI * 2;
-    const distance = 460 + (i % 5) * 90;
-    group.position.set(Math.cos(angle) * distance, 90 + (i % 4) * 18, Math.sin(angle) * distance);
-    group.rotation.y = -angle;
-    scene.add(group);
-
-    for (let p = 0; p < 4; p += 1) {
-      const puff = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 8), material);
-      puff.scale.set(12 + p * 2, 4 + (p % 2) * 2, 5 + p);
-      puff.position.set((p - 2) * 10, Math.sin(p + i) * 3, Math.cos(p) * 4);
-      group.add(puff);
-    }
+  for (let i = 0; i < 14; i += 1) {
+    const angle = (i / 14) * Math.PI * 2;
+    const distance = 300 + (i % 5) * 74;
+    const cloud = new THREE.Sprite(cloudMaterial);
+    cloud.name = 'weather_cloud';
+    cloud.position.set(Math.cos(angle) * distance, 78 + (i % 4) * 17, Math.sin(angle) * distance);
+    cloud.scale.set(150 + (i % 4) * 34, 58 + (i % 3) * 13, 1);
+    scene.add(cloud);
   }
 }
 
@@ -778,13 +1190,18 @@ function tick() {
     fpsFrames = 0;
   }
 
-  water.material.uniforms.time.value += delta * 0.62;
+  updateWeather(delta);
+  water.material.uniforms.time.value += delta * currentSea.waterSpeed;
 
   updateBoat(delta);
+  updateSwimmer(delta);
+  updateUnderwaterWorld(delta);
   updateMissions(delta);
   updateWake(delta);
   updateWind(delta);
   updateCamera(delta);
+  updateRain(delta);
+  updateEnvironment();
   hudAccumulator += delta;
   if (hudAccumulator >= 0.1) {
     updateHud();
@@ -795,28 +1212,39 @@ function tick() {
 }
 
 function updateBoat(delta: number) {
-  const rawThrottle = (isDown('KeyW') || isDown('ArrowUp') ? 1 : 0) - (isDown('KeyS') || isDown('ArrowDown') ? 0.7 : 0);
-  const rawSteer = (isDown('KeyA') || isDown('ArrowLeft') ? 1 : 0) - (isDown('KeyD') || isDown('ArrowRight') ? 1 : 0);
-  const boosting = isDown('ShiftLeft') || isDown('ShiftRight');
+  const helmActive = playerMode === 'helm';
+  const rawThrottle = helmActive
+    ? (isDown('KeyW') || isDown('ArrowUp') ? 1 : 0) - (isDown('KeyS') || isDown('ArrowDown') ? 0.72 : 0)
+    : 0;
+  const rawSteer = helmActive
+    ? (isDown('KeyA') || isDown('ArrowLeft') ? 1 : 0) - (isDown('KeyD') || isDown('ArrowRight') ? 1 : 0)
+    : 0;
+  const boosting = helmActive && (isDown('ShiftLeft') || isDown('ShiftRight'));
 
   throttleValue = THREE.MathUtils.damp(throttleValue, rawThrottle, 6.5, delta);
   steerValue = THREE.MathUtils.damp(steerValue, rawSteer, 8.5, delta);
 
-  const targetAcceleration = boosting ? 24 : 17;
+  const engineMultiplier = 1 + progress.upgrades.engine * 0.08;
+  const targetAcceleration = (boosting ? 25 : 18) * engineMultiplier;
   speed += throttleValue * targetAcceleration * delta;
   if (rawThrottle < 0 && speed > 0) {
     speed -= (18 + speed * 0.42) * delta;
   }
-  const drag = rawThrottle === 0 ? 1.6 : 0.58;
-  speed -= Math.sign(speed) * Math.min(Math.abs(speed), (drag + Math.abs(speed) * 0.045) * delta);
-  speed = THREE.MathUtils.clamp(speed, -8.5, boosting ? 34 : 24);
+  const weatherDrag = 1 + currentSea.rain * 0.24;
+  const drag = (rawThrottle === 0 ? 1.45 : 0.54) * weatherDrag;
+  speed -= Math.sign(speed) * Math.min(Math.abs(speed), (drag + Math.abs(speed) * 0.042) * delta);
+  const stormPenalty = currentSea.rain * Math.max(0.03, 0.14 - progress.upgrades.hull * 0.035);
+  const forwardLimit = (boosting ? 32 : 23) * engineMultiplier * (1 - stormPenalty);
+  speed = THREE.MathUtils.clamp(speed, -8.5, forwardLimit);
 
   const turnPower = THREE.MathUtils.clamp(Math.abs(speed) / 16, 0.22, 1);
   heading += steerValue * turnPower * delta * 1.55;
   displaySpeed = THREE.MathUtils.damp(displaySpeed, Math.abs(speed), 7.5, delta);
 
   const forward = tmpVector.set(Math.sin(heading), 0, -Math.cos(heading)).normalize();
-  const sideDrift = tmpVectorB.copy(windDirection).multiplyScalar(0.22 + Math.abs(speed) * 0.01);
+  const sideDrift = tmpVectorB
+    .copy(windDirection)
+    .multiplyScalar((0.08 + currentSea.windKnots * 0.01) * (1 + Math.abs(speed) * 0.012));
   const velocity = forward.multiplyScalar(speed).add(sideDrift);
   boatBody.setLinvel({ x: velocity.x, y: 0, z: velocity.z }, true);
   physicsWorld.timestep = delta;
@@ -824,11 +1252,19 @@ function updateBoat(delta: number) {
 
   const bodyPosition = boatBody.translation();
   const ocean = sampleOcean(bodyPosition.x, bodyPosition.z, gameTime);
-  const y = ocean.height + 1.55;
+  const y = ocean.height + 0.18;
   boatBody.setTranslation({ x: bodyPosition.x, y, z: bodyPosition.z }, true);
 
-  const pitch = THREE.MathUtils.clamp(Math.atan2(ocean.normal.z, ocean.normal.y) * 0.62 - throttleValue * 0.04, -0.22, 0.22);
-  const roll = THREE.MathUtils.clamp(-Math.atan2(ocean.normal.x, ocean.normal.y) * 0.72 - steerValue * turnPower * 0.16, -0.32, 0.32);
+  const pitch = THREE.MathUtils.clamp(
+    Math.atan2(ocean.normal.z, ocean.normal.y) * 0.76 - throttleValue * 0.035,
+    -0.42,
+    0.42,
+  );
+  const roll = THREE.MathUtils.clamp(
+    -Math.atan2(ocean.normal.x, ocean.normal.y) * 0.88 - steerValue * turnPower * 0.15,
+    -0.52,
+    0.52,
+  );
   yawEuler.set(pitch, heading, roll, 'YXZ');
   tmpQuaternion.setFromEuler(yawEuler);
   boatBody.setRotation(tmpQuaternion, true);
@@ -842,14 +1278,60 @@ function updateBoat(delta: number) {
   }
 
   if (Math.abs(speed) > 3 && gameTime - lastWakeSpawn > 0.09) {
-    sternBase.set(0, 0, 9.4).applyQuaternion(yacht.quaternion).add(yacht.position);
+    sternBase.set(0, 0, 15.4).applyQuaternion(yacht.quaternion).add(yacht.position);
     createWakeParticle(sternBase, Math.abs(speed) * 0.08);
-    const side = wakeSideToggle ? sternLeft.set(-1.75, 0, 9.8) : sternRight.set(1.75, 0, 9.8);
+    const side = wakeSideToggle ? sternLeft.set(-2.25, 0, 15.8) : sternRight.set(2.25, 0, 15.8);
     side.applyQuaternion(yacht.quaternion).add(yacht.position);
     createWakeParticle(side, Math.abs(speed) * 0.045);
     wakeSideToggle = !wakeSideToggle;
     lastWakeSpawn = gameTime;
   }
+}
+
+function updateSwimmer(delta: number) {
+  if (playerMode !== 'swim') return;
+
+  const forwardInput = (isDown('KeyW') || isDown('ArrowUp') ? 1 : 0) - (isDown('KeyS') || isDown('ArrowDown') ? 0.65 : 0);
+  const turnInput = (isDown('KeyA') || isDown('ArrowLeft') ? 1 : 0) - (isDown('KeyD') || isDown('ArrowRight') ? 1 : 0);
+  const verticalInput = (isDown('Space') ? 1 : 0) - (isDown('ControlLeft') || isDown('ControlRight') ? 1 : 0);
+  const boosting = isDown('ShiftLeft') || isDown('ShiftRight');
+  const targetSwimSpeed = forwardInput * (boosting ? 7.2 : 4.4);
+
+  swimYaw += turnInput * delta * (boosting ? 1.55 : 1.2);
+  swimSpeed = THREE.MathUtils.damp(swimSpeed, targetSwimSpeed, 4.8, delta);
+  const forward = tmpVectorF.set(Math.sin(swimYaw), 0, -Math.cos(swimYaw));
+  swimmer.position.addScaledVector(forward, swimSpeed * delta);
+  swimmer.position.y += verticalInput * (boosting ? 4.8 : 3.1) * delta;
+
+  const surface = sampleOceanHeight(swimmer.position.x, swimmer.position.z, gameTime);
+  const floor = seabedHeight(swimmer.position.x, swimmer.position.z) + 1.05;
+  swimmer.position.y = THREE.MathUtils.clamp(swimmer.position.y, floor, surface + 0.15);
+  const depth = Math.max(0, surface - swimmer.position.y);
+  const airDrain = 0.82 / (1 + progress.upgrades.tank * 0.25);
+  oxygen = THREE.MathUtils.clamp(oxygen + (depth < 0.35 ? 14 : -airDrain) * delta, 0, 100);
+
+  swimmer.rotation.set(-verticalInput * 0.2, swimYaw, -turnInput * 0.12, 'YXZ');
+  const kick = Math.sin(gameTime * (boosting ? 9 : 6.5)) * Math.min(1, Math.abs(swimSpeed) / 3.2);
+  animateSwimmerPart(swimmerLeftLeg, kick * 0.2);
+  animateSwimmerPart(swimmerRightLeg, -kick * 0.2);
+  animateSwimmerPart(swimmerLeftArm, -kick * 0.08);
+  animateSwimmerPart(swimmerRightArm, kick * 0.08);
+  swimmerBody.setTranslation(
+    { x: swimmer.position.x, y: swimmer.position.y, z: swimmer.position.z },
+    true,
+  );
+
+  if (oxygen <= 0.01) {
+    returnToHelm('Mara recovered the diver. Air supply restored.');
+  }
+}
+
+function animateSwimmerPart(part: THREE.Object3D | undefined, offset: number) {
+  if (!part) return;
+  if (typeof part.userData.baseSwimRotation !== 'number') {
+    part.userData.baseSwimRotation = part.rotation.y;
+  }
+  part.rotation.y = part.userData.baseSwimRotation + offset;
 }
 
 function updateMissions(delta: number) {
@@ -865,12 +1347,87 @@ function updateMissions(delta: number) {
   const current = missionSignals[missionIndex];
   if (!current) return;
 
-  const distance = yacht.position.distanceTo(current.position);
+  const activePosition = playerMode === 'helm' ? yacht.position : swimmer.position;
+  const distance = Math.hypot(activePosition.x - current.position.x, activePosition.z - current.position.z);
   if (distance < 7.4) {
     current.collected = true;
     missionIndex += 1;
-    setNotice(missionIndex >= missionSignals.length ? 'Final signal logged. Open water is yours.' : 'Signal logged. Next marker updated.');
+    if (missionIndex >= missionSignals.length) {
+      completeExpedition();
+    } else {
+      setNotice('Signal logged. Next marker updated.');
+    }
   }
+}
+
+function completeExpedition() {
+  if (expeditionComplete) return;
+  expeditionComplete = true;
+  speed = 0;
+  throttleValue = 0;
+  if (!rewardGranted) {
+    progress.credits += EXPEDITION_REWARD;
+    progress.expeditions += 1;
+    rewardGranted = true;
+    saveProgress(progress);
+  }
+  renderHarbor();
+  harbor?.classList.add('is-open');
+  harbor?.setAttribute('aria-hidden', 'false');
+  setNotice(`Expedition complete. ${EXPEDITION_REWARD} credits awarded.`);
+}
+
+function renderHarbor() {
+  if (creditsText) creditsText.textContent = progress.credits.toString();
+  if (harborCredits) harborCredits.textContent = progress.credits.toString();
+  if (rewardText) rewardText.textContent = rewardGranted ? EXPEDITION_REWARD.toString() : '0';
+  if (expeditionsText) expeditionsText.textContent = `${progress.expeditions} expedition${progress.expeditions === 1 ? '' : 's'} completed`;
+  if (!upgradeList) return;
+  upgradeList.replaceChildren();
+  (Object.keys(UPGRADE_CATALOG) as UpgradeKey[]).forEach((key) => {
+    const item = UPGRADE_CATALOG[key];
+    const level = progress.upgrades[key];
+    const cost = upgradeCost(key, level);
+    const maxed = level >= item.maxLevel;
+    const article = document.createElement('article');
+    article.className = 'upgrade';
+    article.innerHTML = `<div><span>${item.name}</span><strong>${item.description}</strong></div><div class="upgrade__level" aria-label="Level ${level} of ${item.maxLevel}">${Array.from({ length: item.maxLevel }, (_, index) => `<i class="${index < level ? 'is-filled' : ''}"></i>`).join('')}</div>`;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.dataset.upgrade = key;
+    button.disabled = maxed || progress.credits < cost;
+    button.textContent = maxed ? 'Max level' : `${cost} credits`;
+    button.addEventListener('click', () => purchaseUpgrade(key));
+    article.append(button);
+    upgradeList.append(article);
+  });
+}
+
+function purchaseUpgrade(key: UpgradeKey) {
+  const item = UPGRADE_CATALOG[key];
+  const level = progress.upgrades[key];
+  const cost = upgradeCost(key, level);
+  if (level >= item.maxLevel || progress.credits < cost) return;
+  progress.credits -= cost;
+  progress.upgrades[key] += 1;
+  saveProgress(progress);
+  renderHarbor();
+  setNotice(`${item.name} upgraded to level ${progress.upgrades[key]}.`);
+}
+
+function launchNextExpedition() {
+  expeditionComplete = false;
+  rewardGranted = false;
+  missionIndex = 0;
+  missionSignals.forEach((signal) => {
+    signal.collected = false;
+    signal.group.visible = true;
+  });
+  harbor?.classList.remove('is-open');
+  harbor?.setAttribute('aria-hidden', 'true');
+  resetBoat();
+  setNotice('New Bluewater Survey launched. Signal one is active.');
+  updateHud();
 }
 
 function updateWake(delta: number) {
@@ -893,17 +1450,204 @@ function updateWake(delta: number) {
   }
 }
 
+function updateWeather(delta: number) {
+  dampSeaState(currentSea, targetSea, delta);
+  const colorBlend = 1 - Math.exp(-1.8 * delta);
+  currentWaterColor.lerp(tmpColor.set(targetSea.waterColor), colorBlend);
+  currentFogColor.lerp(tmpColor.set(targetSea.fogColor), colorBlend);
+  currentCloudColor.lerp(tmpColor.set(targetSea.cloudColor), colorBlend);
+  windDirection.set(currentSea.windX, 0, currentSea.windZ).normalize();
+  waterWaveUniforms.uWaveTime.value = gameTime;
+  waterWaveUniforms.uPrimaryWave.value.set(
+    currentSea.primaryFrequencyX,
+    currentSea.primaryFrequencyZ,
+    currentSea.primaryAmplitude,
+    currentSea.primarySpeed,
+  );
+  waterWaveUniforms.uCrossWave.value.set(
+    currentSea.crossFrequencyX,
+    currentSea.crossFrequencyZ,
+    currentSea.crossAmplitude,
+    currentSea.crossSpeed,
+  );
+  waterWaveUniforms.uChopWave.value.set(
+    currentSea.chopFrequencyX,
+    currentSea.chopFrequencyZ,
+    currentSea.chopAmplitude,
+    currentSea.chopSpeed,
+  );
+
+  water.material.uniforms.distortionScale.value = currentSea.distortionScale;
+  water.material.uniforms.waterColor.value.copy(currentWaterColor);
+  const skyUniforms = sky.material.uniforms;
+  skyUniforms.turbidity.value = currentSea.turbidity;
+  skyUniforms.rayleigh.value = currentSea.rayleigh;
+  skyUniforms.mieCoefficient.value = currentSea.mieCoefficient;
+  skyUniforms.mieDirectionalG.value = currentSea.mieDirectionalG;
+
+  cloudMaterial.color.copy(currentCloudColor);
+  cloudMaterial.opacity = currentSea.cloudOpacity;
+  sunGlow.material.opacity = 0.9 * (1 - currentSea.rain * 0.92);
+  hemisphereLight.intensity = 1.15 - currentSea.rain * 0.42;
+  sunLight.intensity = 4.1 - currentSea.rain * 2.7;
+
+  if (currentSea.rain > 0.72 && gameTime >= nextLightningAt) {
+    lightningFlash = 1;
+    nextLightningAt = gameTime + 4.2 + Math.random() * 7.5;
+  }
+  lightningFlash = Math.max(0, lightningFlash - delta * 3.8);
+  if (lightningFlash > 0) {
+    sunLight.intensity += lightningFlash * 8;
+  }
+}
+
+function updateUnderwaterWorld(delta: number) {
+  if (causticMaterial) {
+    causticMaterial.uniforms.uTime.value = gameTime;
+    causticMaterial.uniforms.uOpacity.value = THREE.MathUtils.damp(
+      causticMaterial.uniforms.uOpacity.value,
+      cameraUnderwater ? 0.12 : 0,
+      4,
+      delta,
+    );
+  }
+
+  if (fishSchool) {
+    fishAgents.forEach((agent, index) => {
+      const angle = gameTime * agent.speed + agent.phase;
+      const x = Math.sin(angle) * agent.radius;
+      const z = 20 + Math.cos(angle) * agent.radius;
+      const y = agent.height + Math.sin(gameTime * 0.8 + index) * 0.42;
+      tmpMatrix.compose(
+        tmpVector.set(x, y, z),
+        tmpQuaternion.setFromAxisAngle(tmpVectorB.set(0, 1, 0), -angle),
+        tmpVectorC.set(0.78 + (index % 4) * 0.08, 0.72, 0.72),
+      );
+      fishSchool?.setMatrixAt(index, tmpMatrix);
+    });
+    fishSchool.instanceMatrix.needsUpdate = true;
+  }
+
+  if (!bubblePoints) return;
+  bubblePoints.visible = playerMode === 'swim';
+  if (!bubblePoints.visible) return;
+  underwaterLight.position.copy(swimmer.position).add(tmpVector.set(0, 2.5, 0));
+  for (let index = 0; index < bubblePositions.length; index += 3) {
+    const surface = sampleOceanHeight(bubblePositions[index], bubblePositions[index + 2], gameTime);
+    const needsReset = bubblePositions[index + 1] < -900 || bubblePositions[index + 1] > surface + 0.2;
+    if (needsReset) {
+      const seed = index / 3;
+      bubblePositions[index] = swimmer.position.x + (Math.random() - 0.5) * 0.8;
+      bubblePositions[index + 1] = swimmer.position.y + (seed % 9) * 0.08 - 0.2;
+      bubblePositions[index + 2] = swimmer.position.z + (Math.random() - 0.5) * 0.8;
+    } else {
+      bubblePositions[index] += windDirection.x * delta * 0.08;
+      bubblePositions[index + 1] += delta * (0.48 + (index % 7) * 0.08);
+      bubblePositions[index + 2] += windDirection.z * delta * 0.08;
+    }
+  }
+  (bubblePoints.geometry.attributes.position as THREE.BufferAttribute).needsUpdate = true;
+}
+
+function updateRain(delta: number) {
+  if (!rainLines) return;
+  const intensity = currentSea.rain;
+  rainLines.visible = intensity > 0.03 && !cameraUnderwater;
+  rainLines.material.opacity = intensity * 0.42;
+  if (!rainLines.visible) return;
+
+  const count = rainPositions.length / 6;
+  const fallSpeed = 48 + intensity * 30;
+  for (let index = 0; index < count; index += 1) {
+    const offset = index * 6;
+    rainPositions[offset] += windDirection.x * delta * 12;
+    rainPositions[offset + 1] -= fallSpeed * delta;
+    rainPositions[offset + 2] += windDirection.z * delta * 12;
+    rainPositions[offset + 3] = rainPositions[offset] - windDirection.x * 1.6;
+    rainPositions[offset + 4] = rainPositions[offset + 1] - 2.8;
+    rainPositions[offset + 5] = rainPositions[offset + 2] - windDirection.z * 1.6;
+    const tooFar =
+      Math.abs(rainPositions[offset] - camera.position.x) > 66 ||
+      Math.abs(rainPositions[offset + 2] - camera.position.z) > 66;
+    if (rainPositions[offset + 1] < camera.position.y - 32 || tooFar) {
+      resetRainDrop(index, false);
+    }
+  }
+  (rainLines.geometry.attributes.position as THREE.BufferAttribute).needsUpdate = true;
+}
+
+function resetRainDrop(index: number, initial: boolean) {
+  const offset = index * 6;
+  const x = camera.position.x + (Math.random() - 0.5) * 126;
+  const y = camera.position.y + (initial ? (Math.random() - 0.35) * 90 : 48 + Math.random() * 34);
+  const z = camera.position.z + (Math.random() - 0.5) * 126;
+  rainPositions[offset] = x;
+  rainPositions[offset + 1] = y;
+  rainPositions[offset + 2] = z;
+  rainPositions[offset + 3] = x - windDirection.x * 1.6;
+  rainPositions[offset + 4] = y - 2.8;
+  rainPositions[offset + 5] = z - windDirection.z * 1.6;
+}
+
+function updateEnvironment() {
+  const surfaceAtCamera = sampleOceanHeight(camera.position.x, camera.position.z, gameTime);
+  const nextUnderwater = camera.position.y < surfaceAtCamera - 0.08;
+  if (nextUnderwater !== cameraUnderwater) {
+    cameraUnderwater = nextUnderwater;
+    gameRoot.classList.toggle('is-underwater', cameraUnderwater);
+    water.visible = !cameraUnderwater;
+    underwaterSurface.visible = cameraUnderwater;
+    if (causticsMesh) causticsMesh.visible = cameraUnderwater;
+    sky.visible = !cameraUnderwater;
+    sunGlow.visible = !cameraUnderwater;
+    scene.background = cameraUnderwater ? underwaterBackground : null;
+    surfaceOnlyObjects.forEach((object) => {
+      object.visible = !cameraUnderwater;
+    });
+  }
+
+  const fog = scene.fog as THREE.FogExp2;
+  if (cameraUnderwater) {
+    fog.color.set(0x073746);
+    fog.density = 0.022;
+    underwaterLight.intensity = 2.1;
+    renderer.toneMappingExposure = 0.5;
+  } else {
+    fog.color.copy(currentFogColor);
+    fog.density = currentSea.fogDensity;
+    underwaterLight.intensity = 0;
+    renderer.toneMappingExposure = currentSea.exposure + lightningFlash * 0.34;
+  }
+  music?.setEnvironment(cameraUnderwater, currentSea.rain);
+}
+
+function selectWeather(key: WeatherKey, announce = true) {
+  weatherKey = key;
+  targetSea = cloneSeaState(WEATHER_PRESETS[key]);
+  gameRoot.dataset.weatherMode = key;
+  weatherButtons.forEach((button) => {
+    button.setAttribute('aria-pressed', String(button.dataset.weather === key));
+  });
+  setSun(targetSea.sunElevation, targetSea.sunAzimuth);
+  if (announce) {
+    setNotice(`${WEATHER_PRESETS[key].label} sea selected. Wind ${targetSea.windKnots} knots.`);
+  }
+}
+
 function updateWind(delta: number) {
-  const boatPos = yacht.position;
+  const boatPos = playerMode === 'helm' ? yacht.position : swimmer.position;
+  const windStrength = THREE.MathUtils.clamp(currentSea.windKnots / 18, 0.2, 2.4);
   windStreaks.forEach((streak) => {
-    streak.offset.addScaledVector(windDirection, streak.speed * delta);
+    streak.offset.addScaledVector(windDirection, streak.speed * delta * windStrength);
     if (streak.offset.lengthSq() > 240 * 240) {
       streak.offset.set((Math.random() - 0.5) * 210, 10 + Math.random() * 30, (Math.random() - 0.5) * 210);
     }
     streak.line.position.copy(boatPos).add(streak.offset);
-    streak.line.position.y = Math.max(streak.line.position.y, 8);
+    streak.line.position.y = Math.max(streak.line.position.y, cameraUnderwater ? -2 : 8);
     streak.line.rotation.y = Math.atan2(windDirection.x, windDirection.z) + Math.PI / 2;
-    streak.line.material.opacity = 0.12 + 0.22 * Math.sin(gameTime * 0.8 + streak.speed);
+    streak.line.material.opacity = cameraUnderwater
+      ? 0
+      : (0.05 + 0.14 * Math.sin(gameTime * 0.8 + streak.speed)) * windStrength;
   });
 
   if (notice && hiddenNoticeAt && gameTime > hiddenNoticeAt) {
@@ -912,6 +1656,18 @@ function updateWind(delta: number) {
 }
 
 function updateCamera(delta: number) {
+  if (playerMode === 'swim') {
+    tmpQuaternion.setFromEuler(yawEuler.set(0, swimYaw, 0, 'YXZ'));
+    tmpVectorC.set(0, 1.05, 6.8).applyQuaternion(tmpQuaternion);
+    tmpVectorD.copy(swimmer.position).add(tmpVectorC);
+    tmpVectorE.set(Math.sin(swimYaw), 0, -Math.cos(swimYaw));
+    cameraTarget.copy(swimmer.position).addScaledVector(tmpVectorE, 3.2);
+    cameraTarget.y += 0.18;
+    camera.position.lerp(tmpVectorD, 1 - Math.pow(0.002, delta));
+    camera.lookAt(cameraTarget);
+    return;
+  }
+
   tmpVectorC.copy(cameraOffsets[cameraMode % cameraOffsets.length]).applyQuaternion(yacht.quaternion);
   tmpVectorD.copy(yacht.position).add(tmpVectorC);
   cameraTarget.copy(yacht.position);
@@ -921,13 +1677,31 @@ function updateCamera(delta: number) {
 }
 
 function updateHud() {
-  if (speedText) speedText.textContent = Math.round(displaySpeed * 1.94).toString();
-  if (headingText) headingText.textContent = formatHeading(heading);
-  if (windText) windText.textContent = windKnots.toString();
+  const activeHeading = playerMode === 'helm' ? heading : swimYaw;
+  const activeSpeed = playerMode === 'helm' ? displaySpeed : Math.abs(swimSpeed);
+  const surface = swimmer ? sampleOceanHeight(swimmer.position.x, swimmer.position.z, gameTime) : 0;
+  const depth = swimmer ? Math.max(0, surface - swimmer.position.y) : 0;
+  if (speedText) speedText.textContent = Math.round(activeSpeed * 1.94).toString();
+  if (headingText) headingText.textContent = formatHeading(activeHeading);
+  if (windText) windText.textContent = Math.round(currentSea.windKnots).toString();
   if (fpsText) fpsText.textContent = measuredFps.toString();
   if (progressText) progressText.textContent = `${Math.min(missionIndex, missionSignals.length)}`;
-  if (objectiveText) objectiveText.textContent = missionCopy[Math.min(missionIndex, missionCopy.length - 1)];
-  if (npcText) npcText.textContent = npcCopy[Math.min(missionIndex, npcCopy.length - 1)];
+  if (creditsText) creditsText.textContent = progress.credits.toString();
+  if (modeText) modeText.textContent = playerMode === 'helm' ? 'Helm' : 'Dive';
+  if (depthText) depthText.textContent = depth.toFixed(1);
+  if (airText) airText.textContent = Math.ceil(oxygen).toString();
+  airStatus?.classList.toggle('is-low', oxygen < 25);
+  if (modeToggle) modeToggle.textContent = playerMode === 'helm' ? 'Dive' : 'Board';
+
+  if (playerMode === 'swim') {
+    if (objectiveText) objectiveText.textContent = depth < 0.5 ? 'Surface survey' : 'Explore the Aurora reef';
+    if (npcText) {
+      npcText.textContent = oxygen < 25 ? 'Mara: Air is low. Move toward the surface.' : 'Mara: Telemetry is clear. The reef is alive below you.';
+    }
+  } else {
+    if (objectiveText) objectiveText.textContent = missionCopy[Math.min(missionIndex, missionCopy.length - 1)];
+    if (npcText) npcText.textContent = npcCopy[Math.min(missionIndex, npcCopy.length - 1)];
+  }
 }
 
 function formatHeading(value: number) {
@@ -942,6 +1716,9 @@ function createInput() {
       void ensureMusic();
     }
     keys[event.code] = true;
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(event.code)) {
+      event.preventDefault();
+    }
     if (event.code === 'KeyM' && !event.repeat) {
       void toggleMusic();
     }
@@ -949,6 +1726,12 @@ function createInput() {
       cameraMode = (cameraMode + 1) % 3;
       setNotice('Camera changed.');
     }
+    if (event.code === 'KeyE' && !event.repeat) {
+      togglePlayerMode();
+    }
+    if (event.code === 'Digit1' && !event.repeat) selectWeather('calm');
+    if (event.code === 'Digit2' && !event.repeat) selectWeather('bluewater');
+    if (event.code === 'Digit3' && !event.repeat) selectWeather('storm');
     if (event.code === 'KeyR' && !event.repeat) {
       resetBoat();
       setNotice('Yacht reset to open water.');
@@ -981,6 +1764,24 @@ function createInput() {
     event.preventDefault();
     void toggleMusic();
   });
+
+  modeToggle?.addEventListener('pointerdown', (event) => {
+    event.preventDefault();
+    void ensureMusic();
+    togglePlayerMode();
+  });
+
+  weatherButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      const key = button.dataset.weather as WeatherKey | undefined;
+      if (!key || !WEATHER_PRESETS[key]) return;
+      void ensureMusic();
+      selectWeather(key);
+    });
+  });
+
+  nextExpeditionButton?.addEventListener('click', launchNextExpedition);
+  renderHarbor();
 
   window.addEventListener('resize', resize);
   setTimeout(() => {
@@ -1022,7 +1823,50 @@ function isDown(code: string) {
   return keys[code] === true;
 }
 
+function togglePlayerMode() {
+  if (playerMode === 'helm') {
+    enterSwimMode();
+  } else {
+    returnToHelm('Diver aboard. Helm control restored.');
+  }
+}
+
+function enterSwimMode() {
+  speed = 0;
+  throttleValue = 0;
+  steerValue = 0;
+  swimSpeed = 0;
+  swimYaw = heading;
+  oxygen = 100;
+  const launchPoint = tmpVector.set(5.4, 0, 21.5).applyQuaternion(yacht.quaternion).add(yacht.position);
+  const surface = sampleOceanHeight(launchPoint.x, launchPoint.z, gameTime);
+  swimmer.position.set(launchPoint.x, surface - 2.2, launchPoint.z);
+  swimmer.rotation.set(0, swimYaw, 0, 'YXZ');
+  swimmer.visible = true;
+  bubblePoints.visible = true;
+  swimmerBody.setTranslation({ x: swimmer.position.x, y: swimmer.position.y, z: swimmer.position.z }, true);
+  playerMode = 'swim';
+  gameRoot.dataset.playerMode = 'swim';
+  setNotice('Dive telemetry active. Aurora is holding position.');
+  updateHud();
+}
+
+function returnToHelm(message: string) {
+  playerMode = 'helm';
+  gameRoot.dataset.playerMode = 'helm';
+  swimmer.visible = false;
+  bubblePoints.visible = false;
+  swimmerBody.setTranslation({ x: 0, y: -1000, z: 0 }, true);
+  swimSpeed = 0;
+  oxygen = 100;
+  setNotice(message);
+  updateHud();
+}
+
 function resetBoat() {
+  if (playerMode === 'swim') {
+    returnToHelm('Diver aboard. Aurora reset to open water.');
+  }
   speed = 0;
   throttleValue = 0;
   steerValue = 0;
@@ -1030,7 +1874,7 @@ function resetBoat() {
   heading = 0;
   boatBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
   boatBody.setAngvel({ x: 0, y: 0, z: 0 }, true);
-  boatBody.setTranslation({ x: 0, y: 2, z: 20 }, true);
+  boatBody.setTranslation({ x: 0, y: 0.2, z: 20 }, true);
 }
 
 function setNotice(message: string) {
@@ -1048,10 +1892,25 @@ function resize() {
 }
 
 function sampleOceanHeight(x: number, z: number, time: number) {
-  const primary = Math.sin((x * 0.052 + z * 0.036) + time * 0.92) * 0.72;
-  const cross = Math.sin((x * -0.028 + z * 0.064) + time * 0.62) * 0.46;
-  const chop = Math.sin((x * 0.19 + z * -0.14) + time * 1.7) * 0.13;
+  const primary =
+    Math.sin(
+      x * currentSea.primaryFrequencyX +
+        z * currentSea.primaryFrequencyZ +
+        time * currentSea.primarySpeed,
+    ) * currentSea.primaryAmplitude;
+  const cross =
+    Math.sin(
+      x * currentSea.crossFrequencyX + z * currentSea.crossFrequencyZ + time * currentSea.crossSpeed,
+    ) * currentSea.crossAmplitude;
+  const chop =
+    Math.sin(
+      x * currentSea.chopFrequencyX + z * currentSea.chopFrequencyZ + time * currentSea.chopSpeed,
+    ) * currentSea.chopAmplitude;
   return primary + cross + chop;
+}
+
+function seabedHeight(x: number, z: number) {
+  return -18 + Math.sin(x * 0.034) * 1.15 + Math.cos(z * 0.027) * 0.9 + Math.sin((x + z) * 0.071) * 0.42;
 }
 
 function sampleOcean(x: number, z: number, time: number) {
