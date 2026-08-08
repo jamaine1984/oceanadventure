@@ -105,3 +105,15 @@ Pass. Rapier CCD plus shoreline boundary resolution prevents reef tunneling and 
 ## Round 7 checkpoint
 
 Weighted score: 80/100. Verdict: continue. Highest remaining gaps are automated end-to-end gameplay coverage, portal SDK abstraction, stronger first-session guidance, and richer mission interaction variety.
+
+## Round 8 target
+
+Remove distributor lock-in and satisfy portal lifecycle requirements. Standalone, CrazyGames, and Poki builds must share one platform interface for loading, gameplay state, persistence, and rewarded ads. Ads must be optional, restricted to the harbor, pause audio/input, and grant rewards only after successful completion.
+
+## Round 8 result
+
+Pass. The platform bridge implements standalone fallback, CrazyGames HTML5 v3 lifecycle/data/reward callbacks, and Poki lifecycle/cloud-save-compatible local storage/reward promises. The real CrazyGames localhost SDK initialized without errors and doubled an 850-credit reward to 1,700 exactly once. Standalone mode hid the ad control and remained at 60 FPS.
+
+## Round 8 checkpoint
+
+Weighted score: 84/100. Verdict: continue. Remaining launch vetoes are automated end-to-end coverage, stronger first-session guidance, richer mission interaction variety, and final portal packaging checks.

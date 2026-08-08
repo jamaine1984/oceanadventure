@@ -6,7 +6,8 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { Sky } from 'three/examples/jsm/objects/Sky.js';
 import { Water } from 'three/examples/jsm/objects/Water.js';
 import { WEATHER_PRESETS, cloneSeaState, dampSeaState, type WeatherKey } from './sea-config';
-import { ACHIEVEMENT_CATALOG, BOAT_CATALOG, UPGRADE_CATALOG, defaultProgress, loadProgress, saveProgress, upgradeCost, type AchievementKey, type BoatKey, type UpgradeKey } from './progression';
+import { ACHIEVEMENT_CATALOG, BOAT_CATALOG, UPGRADE_CATALOG, defaultProgress, loadProgress, saveProgress, setProgressStorage, upgradeCost, type AchievementKey, type BoatKey, type UpgradeKey } from './progression';
+import { platform } from './platform';
 
 type KeyMap = Record<string, boolean>;
 type PlayerMode = 'helm' | 'swim';
@@ -71,6 +72,7 @@ const pauseToggle = document.querySelector<HTMLButtonElement>('[data-pause-toggl
 const pauseMenu = document.querySelector<HTMLElement>('[data-pause-menu]');
 const resumeButton = document.querySelector<HTMLButtonElement>('[data-resume]');
 const qualityButtons = document.querySelectorAll<HTMLButtonElement>('[data-quality]');
+const rewardAdButton = document.querySelector<HTMLButtonElement>('[data-reward-ad]');
 
 if (!gameRoot || !host) {
   throw new Error('Ocean Adventure canvas host is missing.');
@@ -183,9 +185,10 @@ let nextLightningAt = 7;
 let weatherKey: WeatherKey = 'bluewater';
 let currentSea = cloneSeaState(WEATHER_PRESETS.bluewater);
 let targetSea = cloneSeaState(WEATHER_PRESETS.bluewater);
-const progress = loadProgress();
+const progress = defaultProgress();
 let expeditionComplete = false;
 let rewardGranted = false;
+let rewardDoubled = false;
 let awaitingHarbor = false;
 let awaitingDiveRecovery = false;
 let gamepadThrottle = 0;
@@ -329,6 +332,11 @@ class OceanMusic {
     return !this.muted;
   }
 
+  setMuted(muted: boolean) {
+    this.muted = muted;
+    this.master.gain.setTargetAtTime(muted ? 0 : 0.72, this.context.currentTime, 0.08);
+  }
+
   setEnvironment(submerged: boolean, stormAmount: number) {
     const now = this.context.currentTime;
     const cutoff = submerged ? 720 : 18000 - stormAmount * 5200;
@@ -432,6 +440,9 @@ class OceanMusic {
 
 async function initialize() {
   const qaMode = location.hostname === 'localhost' ? new URLSearchParams(location.search).get('qa') : null;
+  await platform.initialize();
+  setProgressStorage(platform.storage);
+  Object.assign(progress, loadProgress());
   if (qaMode === 'reset') {
     Object.assign(progress, defaultProgress());
     saveProgress(progress);
@@ -476,6 +487,9 @@ async function initialize() {
   }
 
   loading?.classList.add('is-hidden');
+  platform.loadingFinished();
+  platform.gameplayStart();
+  if (rewardAdButton) rewardAdButton.hidden = !platform.supportsRewardedAds();
   renderer.setAnimationLoop(tick);
 }
 
@@ -1596,6 +1610,7 @@ function updateMissions(delta: number) {
 function completeExpedition() {
   if (expeditionComplete) return;
   expeditionComplete = true;
+  platform.gameplayStop();
   awaitingHarbor = false;
   awaitingDiveRecovery = false;
   speed = 0;
@@ -1718,6 +1733,11 @@ function purchaseUpgrade(key: UpgradeKey) {
 function launchNextExpedition() {
   expeditionComplete = false;
   rewardGranted = false;
+  rewardDoubled = false;
+  if (rewardAdButton) {
+    rewardAdButton.disabled = false;
+    rewardAdButton.textContent = 'Double reward';
+  }
   activeContractIndex = progress.expeditions % expeditionContracts.length;
   awaitingHarbor = false;
   awaitingDiveRecovery = false;
@@ -1733,6 +1753,7 @@ function launchNextExpedition() {
   const contract = expeditionContracts[activeContractIndex];
   selectWeather(contract.weather, false);
   setNotice(`${contract.name} launched. ${contract.briefing}`);
+  platform.gameplayStart();
   updateHud();
 }
 
@@ -2147,6 +2168,7 @@ function createInput() {
   });
 
   nextExpeditionButton?.addEventListener('click', launchNextExpedition);
+  rewardAdButton?.addEventListener('click', () => { void doubleReward(); });
   pauseToggle?.addEventListener('click', () => togglePause(true));
   resumeButton?.addEventListener('click', () => togglePause(false));
   qualityButtons.forEach((button) => {
@@ -2167,6 +2189,30 @@ function togglePause(force?: boolean) {
   pauseMenu?.classList.toggle('is-open', isPaused);
   pauseMenu?.setAttribute('aria-hidden', String(!isPaused));
   pauseToggle?.setAttribute('aria-label', isPaused ? 'Resume' : 'Pause');
+  if (isPaused) platform.gameplayStop();
+  else platform.gameplayStart();
+}
+
+async function doubleReward() {
+  if (!rewardAdButton || rewardDoubled || !rewardGranted) return;
+  rewardAdButton.disabled = true;
+  const resumeMusic = music?.isOn() ?? false;
+  const rewarded = await platform.rewardedBreak(
+    () => { platform.gameplayStop(); music?.setMuted(true); },
+    () => { if (resumeMusic) music?.setMuted(false); },
+  );
+  if (rewarded) {
+    const bonus = expeditionContracts[activeContractIndex].reward;
+    progress.credits += bonus;
+    rewardDoubled = true;
+    saveProgress(progress);
+    renderHarbor();
+    rewardAdButton.textContent = 'Reward doubled';
+    setNotice(`${bonus} bonus credits added.`);
+  } else {
+    rewardAdButton.disabled = false;
+    setNotice('Reward video unavailable. Your expedition reward is safe.');
+  }
 }
 
 function setQuality(quality: string) {

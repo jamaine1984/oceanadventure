@@ -396,6 +396,23 @@ button:focus-visible {
   font-size: 13px;
 }
 
+.harbor__reward button {
+  min-height: 34px;
+  margin-top: 10px;
+  padding: 0 14px;
+  border: 1px solid rgba(101, 213, 222, 0.62);
+  border-radius: 5px;
+  background: rgba(101, 213, 222, 0.14);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.harbor__reward button[hidden] {
+  display: none;
+}
+
 .harbor__upgrades {
   display: grid;
 }

@@ -12,6 +12,11 @@ export type PlayerProgress = {
 };
 
 const STORAGE_KEY = 'ocean-adventure-progress-v1';
+let progressStorage: Pick<Storage, 'getItem' | 'setItem'> = localStorage;
+
+export function setProgressStorage(storage: Pick<Storage, 'getItem' | 'setItem'>) {
+  progressStorage = storage;
+}
 
 export const UPGRADE_CATALOG: Record<UpgradeKey, { name: string; description: string; baseCost: number; maxLevel: number }> = {
   engine: { name: 'Bluefin Drive', description: '+8% top speed and acceleration', baseCost: 450, maxLevel: 3 },
@@ -38,7 +43,7 @@ export function defaultProgress(): PlayerProgress {
 
 export function loadProgress(): PlayerProgress {
   try {
-    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '') as Partial<PlayerProgress>;
+    const parsed = JSON.parse(progressStorage.getItem(STORAGE_KEY) ?? '') as Partial<PlayerProgress>;
     const ownedBoats: BoatKey[] = Array.isArray(parsed.ownedBoats)
       ? parsed.ownedBoats.filter((key): key is BoatKey => key === 'aurora' || key === 'voyager')
       : ['aurora'];
@@ -65,7 +70,7 @@ export function loadProgress(): PlayerProgress {
 }
 
 export function saveProgress(progress: PlayerProgress) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(progress));
+  progressStorage.setItem(STORAGE_KEY, JSON.stringify(progress));
 }
 
 export function upgradeCost(key: UpgradeKey, level: number) {
