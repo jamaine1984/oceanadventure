@@ -2,6 +2,7 @@ import { newExpedition, sanitizeExpedition, type ExpeditionRecord } from './expe
 import { newVoyage, sanitizeVoyage, type VoyageState } from './voyage-state';
 import { createArchive, parseArchive, type SaveArchive } from './save-archive';
 import { newFieldEquipment, sanitizeFieldEquipment, type FieldEquipment } from './field-equipment';
+import { newStory, sanitizeStory, type StoryState } from './story-state';
 export type UpgradeKey = 'engine' | 'tank' | 'hull' | 'fins' | 'light';
 export type BoatKey = 'aurora' | 'voyager';
 export type AchievementKey = 'first_signal' | 'deep_diver' | 'storm_runner' | 'fleet_owner' | 'expedition_complete';
@@ -10,6 +11,7 @@ export type PlayerProgress = {
   saveVersion: 2;
   voyage: VoyageState;
   fieldEquipment?: FieldEquipment;
+  story?: StoryState;
   credits: number;
   expeditions: number;
   upgrades: Record<UpgradeKey, number>;
@@ -66,7 +68,7 @@ export const ACHIEVEMENT_CATALOG: Record<AchievementKey, { name: string; descrip
 };
 
 export function defaultProgress(): PlayerProgress {
-  return { saveVersion:2,voyage:newVoyage(),fieldEquipment:newFieldEquipment(),credits: 0, expeditions: 0, upgrades: { engine: 0, tank: 0, hull: 0, fins: 0, light: 0 }, ownedBoats: ['aurora'], activeBoat: 'aurora', achievements: [], expedition: newExpedition(), discoveredSpecies: [], collectionPhotos: {} };
+  return { saveVersion:2,voyage:newVoyage(),fieldEquipment:newFieldEquipment(),story:newStory(),credits: 0, expeditions: 0, upgrades: { engine: 0, tank: 0, hull: 0, fins: 0, light: 0 }, ownedBoats: ['aurora'], activeBoat: 'aurora', achievements: [], expedition: newExpedition(), discoveredSpecies: [], collectionPhotos: {} };
 }
 
 export function loadProgress(): PlayerProgress {
@@ -86,6 +88,7 @@ export function normalizeProgress(value: unknown): PlayerProgress {
     if(!value||typeof value!=='object'||Array.isArray(value))throw new Error('Invalid voyage data.');
     const parsed=value as Partial<PlayerProgress>;
     if(parsed.saveVersion!==undefined&&parsed.saveVersion!==2)throw new ProgressLoadError('This voyage was saved by a different game version. Keep the save and update the game.');
+    if(parsed.story&&parsed.story.version!==1){if(parsed.story.version===undefined)throw new Error('The story record is incomplete.');throw new ProgressLoadError('This story record needs a different game version. Keep the save and update the game.');}
     if(parsed.voyage&&parsed.voyage.version!==1){if(parsed.voyage.version===undefined)throw new Error('The campaign record is incomplete.');throw new ProgressLoadError('The campaign save version is not supported. Keep the save and update the game.');}
     if(parsed.expedition&&parsed.expedition.version!==2){if(parsed.expedition.version===undefined)throw new Error('The expedition record is incomplete.');throw new ProgressLoadError('The expedition save version is not supported. Keep the save and update the game.');}
     if(!Number.isFinite(parsed.credits)||parsed.credits<0||!Array.isArray(parsed.ownedBoats))throw new Error('The voyage is missing its saved balance or fleet.');
@@ -116,6 +119,7 @@ export function normalizeProgress(value: unknown): PlayerProgress {
     }
     return {
       saveVersion:2,
+      story:sanitizeStory(parsed.story),
       voyage:sanitizeVoyage(parsed.voyage),
       fieldEquipment:sanitizeFieldEquipment(parsed.fieldEquipment,sanitizeVoyage(parsed.voyage).blueprints),
       credits: count(parsed.credits),

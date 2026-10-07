@@ -4,7 +4,13 @@ A standalone Three.js and Rapier expedition game with a Blender-authored yacht, 
 
 ## Full-Game Expansion
 
-The voyage atlas contains a discovery chart, persistent named waypoints, fifteen selectable contracts, a three-chapter campaign record, three research partners and reputation-based outfitter discounts. Contracts vary between photography, sampling, mapping, recovery and complete surveys across the existing bay, lagoon and limestone passage. Exploration outside contracts can follow charted waypoints.
+The voyage atlas contains a discovery chart, persistent named waypoints, sixteen selectable contracts, a four-chapter campaign record, three research partners and reputation-based outfitter discounts. Contracts vary between photography, sampling, mapping, recovery, repairs and complete surveys across the existing bay, lagoon and limestone passage. Exploration outside contracts can follow charted waypoints.
+
+The opening expedition and earned reports use an authored radio conversation with questions and persistent decisions. Closing a report does not suppress later earned reports. Supporting harbor NPCs are temporary procedural figures permitted by the user; the existing supplied player remains unchanged. Their named slots support later model replacement.
+
+After archiving The Origin of the Pulse, accept Wake the Array at the harbor. Sail to the service station east of the vault, dive and use Scanner beside the Blender-authored cabinet. Route each source to its receiver frequency and polarity, test the isolated circuits, and commission the feed. The saved commissioning record must return to harbor for its 800-credit payout. Detection and dialogue grant no repair, cargo or payment. The cabinet streams within 180 meters rather than joining initial harbor construction.
+
+The nine image-first visual references and construction briefs are preserved in [the concept folder](assets/concepts/full-game-v1/README.md). They are not implemented destinations or final NPC models.
 
 The underwater Scanner automatically sweeps every seven simulation seconds. Its identification panel lists pending research instruments within 65 m and nearby modeled wildlife within 25 m, with name, range, depth below mean sea level, bearing, field notes and a relevant field action. Moving animals are explicitly last-sweep fixes, not live tracking. Up to five contacts have temporary, depth-tested markers. The Power icon toggles automatic/manual scanning; manual scans retain a separate cooldown so automatic sweeps cannot block them. Menus and reading acquisition pause automatic sweeps; surfacing or choosing another tool clears identification. Scanning never records photographs, completes readings or grants cargo.
 
@@ -73,6 +79,15 @@ npx --yes --package=@playwright/cli playwright-cli -s=scanner run-code --filenam
 npx --yes --package=@playwright/cli playwright-cli -s=scanner close
 ```
 
+Opening and fourth-chapter checks use a separate, disposable browser profile. The first script clears that profile's game storage; never run it in your playing browser. Run these sequentially in the same CLI session. The repair script seeds only the three prerequisite receipts, then plays the new mission through actual controls, including withdrawal, puzzle verification, failed-save retry, harbor payment and reload. This does not prove an earned four-chapter campaign or physical-device performance.
+
+```powershell
+npx --yes --package=@playwright/cli playwright-cli -s=story-check open http://localhost:5174/ --headed
+npx --yes --package=@playwright/cli playwright-cli -s=story-check run-code --filename scripts/verify-story-browser.cjs
+npx --yes --package=@playwright/cli playwright-cli -s=story-check run-code --filename scripts/verify-array-browser.cjs
+npx --yes --package=@playwright/cli playwright-cli -s=story-check close
+```
+
 ## Work From Another Computer
 
 ```powershell
@@ -104,6 +119,10 @@ The active fleet uses the Blender-authored v2 vessels. Walking and swimming use 
 - `assets/blender/manta_dive_drive.blend`
 - `public/models/manta_dive_drive.glb`
 - `scripts/build_manta_dive_drive.py`
+- `assets/blender/array_service_station.blend`
+- `public/models/array_service_station.glb`
+- `scripts/build_array_service.py`
+- `assets/characters/ocean-player-diver-legacy-runtime.glb`
 
 Repackage the shared player from the preserved supplied assets:
 

@@ -5,11 +5,11 @@ import { fileURLToPath } from 'node:url';
 const bundle=await build({stdin:{contents:["export * from './src/voyage-catalog.ts';","export * from './src/voyage-state.ts';","export * from './src/save-archive.ts';","export * from './src/progression.ts';","export * from './src/expedition-state.ts';","export * from './src/chart-markers.ts';","export * from './src/field-equipment.ts';"].join('\n'),resolveDir:fileURLToPath(new URL('../../',import.meta.url)),loader:'ts'},bundle:true,platform:'node',format:'esm',write:false});
 const api=await import('data:text/javascript;base64,'+Buffer.from(bundle.outputFiles[0].text).toString('base64'));
 const storage=()=>{const values=new Map();const adapter={getItem:key=>values.get(key)??null,setItem:(key,value)=>values.set(key,value)};api.setProgressStorage(adapter);return {values,adapter};};
-const complete=id=>{const record=api.newContractExpedition(id),plan=api.expeditionPlan(record);record.photos=[...(plan.requiredSpecies.length?plan.requiredSpecies:['turtle','ray','tang'].slice(0,plan.photoGoal))];record.waterSample=plan.samplesRequired;record.sedimentSample=plan.samplesRequired;record.transectReadings=plan.stations.map((_,index)=>index);record.cableFreed=plan.recoveryRequired&&!plan.stations.length;record.sensorRecovered=record.cableFreed;return record;};
+const complete=id=>{const record=api.newContractExpedition(id),plan=api.expeditionPlan(record);record.photos=[...(plan.requiredSpecies.length?plan.requiredSpecies:['turtle','ray','tang'].slice(0,plan.photoGoal))];record.waterSample=plan.samplesRequired;record.sedimentSample=plan.samplesRequired;record.transectReadings=plan.stations.map((_,index)=>index);record.cableFreed=plan.recoveryRequired&&!plan.stations.length;record.sensorRecovered=record.cableFreed;if(plan.repairRequired)record.arrayRestored=true;return record;};
 
-test('catalog has fifteen distinct contracts, five activity families and one connected campaign',()=>{
-  assert.equal(api.CONTRACTS.length,15);assert.equal(new Set(api.CONTRACTS.map(item=>item.id)).size,15);assert.equal(new Set(api.CONTRACTS.map(item=>item.family)).size,5);
-  const chapters=api.CONTRACTS.filter(item=>item.story);assert.deepEqual(chapters.map(item=>item.story),[1,2,3]);
+test('catalog has sixteen distinct contracts, six activity families and one connected campaign',()=>{
+  assert.equal(api.CONTRACTS.length,16);assert.equal(new Set(api.CONTRACTS.map(item=>item.id)).size,16);assert.equal(new Set(api.CONTRACTS.map(item=>item.family)).size,6);
+  const chapters=api.CONTRACTS.filter(item=>item.story);assert.deepEqual(chapters.map(item=>item.story).sort(),[1,2,3,4]);
   for(const contract of api.CONTRACTS){assert(api.DISTRICTS.some(item=>item.id===contract.district));for(const dependency of contract.prerequisites)assert(api.contractById(dependency));}
 });
 for(const contract of api.CONTRACTS)test(`contract ${contract.id} is completable with only its declared objectives`,()=>{
@@ -28,7 +28,7 @@ test('campaign unlocks districts only through prerequisite contracts and persist
   let voyage=api.newVoyage();assert.equal(api.districtUnlocked('lagoon',voyage.completed),false);
   assert.throws(()=>api.recordContractCompletion(voyage,api.contractById('passage-origin')));
   for(const id of ['bay-signal','lagoon-echo','passage-origin']){assert.equal(api.nextStoryContract(voyage.completed).id,id);voyage=api.recordContractCompletion(voyage,api.contractById(id));}
-  assert.equal(api.nextStoryContract(voyage.completed),undefined);assert(api.districtUnlocked('passage',voyage.completed));assert.deepEqual(voyage.blueprints,['survey-anchor','scooter-drive']);assert.equal(voyage.reputation.mara,65);assert.equal(voyage.reputation.ivo,30);
+  assert.equal(api.nextStoryContract(voyage.completed).id,'array-repair');assert(api.districtUnlocked('passage',voyage.completed));assert.deepEqual(voyage.blueprints,['survey-anchor','scooter-drive']);assert.equal(voyage.reputation.mara,65);assert.equal(voyage.reputation.ivo,30);
   voyage=api.recordContractCompletion(voyage,api.contractById('bay-signal'));assert.equal(voyage.completed.length,3);assert.equal(voyage.completions['bay-signal'],2);assert.equal(voyage.reputation.mara,75);
 });
 test('chart discoveries require proximity, do not duplicate, and validate course and pins',()=>{

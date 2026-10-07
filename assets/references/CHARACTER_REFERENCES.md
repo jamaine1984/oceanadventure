@@ -9,7 +9,7 @@
 - Current land motion export: `assets/characters/ocean-human-mesh2motion-natural.glb`.
 - Active walking and swimming character: `public/models/ocean-player-character.glb`.
 - Preserved original land runtime: `assets/characters/ocean-human-land-runtime.glb`.
-- Preserved diver motion source, not a runtime player download: `public/models/ocean-player-diver.glb`.
+- Preserved diver motion source, not a runtime player download: `assets/characters/ocean-player-diver-legacy-runtime.glb`.
 
 On October 4, 2026, the user superseded the earlier separate-model selection: the SAME supplied character must walk and swim, with no procedural player replacement. `scripts/package_player_swim.mjs` retains the original land mesh, texture, rig and three land clips byte-for-byte and adds retargeted prone swimming clips. Both modes clone the same cached runtime GLB. SwimIdle is a slowed prone Swim cycle; the older upright spread-arm idle is not used. Per-mode materials are independent, while geometry and textures are shared. A failed required GLB load blocks startup with Retry instead of substituting another person.
 

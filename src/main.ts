@@ -13,12 +13,17 @@ import { Inventory } from './inventory';
 import { researchGrantAmount, claimResearchGrant } from './research-grant';
 import { photographCrop } from './photo-framing';
 import { capturePhotograph } from './photo-capture';
-import { createIcons, Package, Ellipsis, Pause, Camera, Save, Map as MapIcon, Compass, Power, Radar } from 'lucide';
+import { createIcons, Package, Ellipsis, Pause, Camera, Save, Map as MapIcon, Compass, Power, Radar, Radio } from 'lucide';
 import { SCOOTER, newFieldEquipment, fabricateScooter, scooterStep, SONAR_COOLDOWN, SONAR_DURATION } from './field-equipment';
 import { identifyScan, scannerReady, type ScanIdentification } from './scan-identification';
 import { ScannerPanel } from './scanner-panel';
 import { DiveSonar } from './dive-sonar';
 import { ScooterGrip } from './scooter-grip';
+import { StoryDialog } from './story-dialog';
+import { completeStory } from './story-state';
+import { ResearchPartners } from './research-partners';
+import { ArrayService } from './array-service';
+import { commissionArray } from './array-repair';
 import { VoyageAtlas } from './voyage-atlas';
 import { contractById, contractAvailable, nextStoryContract } from './voyage-catalog';
 import { discoverNearby, recordContractCompletion, waypointLocation } from './voyage-state';
@@ -285,6 +290,10 @@ let targetSea = cloneSeaState(WEATHER_PRESETS.bluewater);
 const progress = defaultProgress();
 let inventory: Inventory;
 let voyageAtlas: VoyageAtlas;
+let storyDialog:StoryDialog;
+let researchPartners:ResearchPartners;
+let arrayService:ArrayService;
+let automaticStory=false;
 let replacingVoyage=false;
 let adBusy = false;
 let lastMenuRender = 0;
@@ -550,6 +559,7 @@ async function initialize() {
   const startupStages:{stage:string;ms:number}[]=[];let previousStage=startupStarted;
   const stage=(name:string)=>{const now=performance.now();startupStages.push({stage:name,ms:Math.round(now-previousStage)});previousStage=now;};
   const qaMode = ['localhost', '127.0.0.1'].includes(location.hostname) ? new URLSearchParams(location.search).get('qa') : null;
+  automaticStory=!qaMode;
   await platform.initialize();
   stage('platform');
   if (!qaMode && platform.storage === localStorage && !await acquireProgressWriter()) {
@@ -587,7 +597,10 @@ async function initialize() {
     acceptVoyageContract,next=>{try{saveProgress(next);Object.assign(progress,next);cancelSwimAssist();updateHud();return true;}catch{return false;}},
     next=>{try{importProgress(next);replacingVoyage=true;location.reload();return true;}catch{return false;}},
     open=>{clearPlayerInput();resetFrameClock();if(open)platform.gameplayStop();else resumePlatformIfPlaying();});
-  createIcons({ icons: { Package, Ellipsis, Pause, Camera, Save, Map:MapIcon, Compass, Power, Radar } }); createInput();
+  createIcons({ icons: { Package, Ellipsis, Pause, Camera, Save, Map:MapIcon, Compass, Power, Radar, Radio } }); createInput();
+  researchPartners=new ResearchPartners(scene,expeditionWorld.walking.height.bind(expeditionWorld.walking));
+  storyDialog=new StoryDialog(()=>progress,finishConversation,open=>{clearPlayerInput();resetFrameClock();if(open)platform.gameplayStop();else resumePlatformIfPlaying();});
+  arrayService=new ArrayService(scene,expeditionFloor(190,-156),finishArrayRepair,open=>{clearPlayerInput();resetFrameClock();if(open)platform.gameplayStop();else resumePlatformIfPlaying();});
   diveSonar=new DiveSonar(scene);
   if(progress.fieldEquipment?.scooter)void ensureDiveDrive().catch(()=>setNotice('Dive drive model unavailable. Your equipment is saved; toggle the drive to retry.'));
   selectWeather('bluewater', false);
@@ -631,6 +644,7 @@ async function initialize() {
   renderResearchGrant();
   if(progressLoadStatus==='recovered')setNotice('Your voyage was recovered from the latest verified checkpoint. Export a backup from Atlas / Saves.');
   updateHud(); renderer.setAnimationLoop(tick);
+  if(automaticStory)storyDialog.poll();
 }
 
 function restoreExpeditionCheckpoint() {
@@ -1652,9 +1666,11 @@ function tick() {
   if(scannerReady({swimming:playerMode==='swim',selected:selectedTool==='scanner'&&scannerAutomatic,depth:sampleOceanHeight(swimmer.position.x,swimmer.position.z,gameTime)-swimmer.position.y,paused:menusOpen(),acquiring:!!transectReading,time:gameTime,lastSweep:sonarStarted}))emitDiveSonar(false);
   if(playerMode!=='swim'||selectedTool!=='scanner'||sampleOceanHeight(swimmer.position.x,swimmer.position.z,gameTime)-swimmer.position.y<=.6){sonarStarted=-Infinity;sonarResults=[];diveSonar.clear();}
   expeditionWorld.pointLight(camera);
+  researchPartners.update(gameTime,activePlayerPosition(),cameraUnderwater);
   hudAccumulator += delta;
   if (hudAccumulator >= 0.1) {
     updateHud();
+    if(automaticStory&&!menusOpen()&&!transectReading)storyDialog.poll();
     hudAccumulator = 0;
   }
 
@@ -1976,6 +1992,7 @@ function updateSwimmer(delta: number) {
     tmpVectorC.sub(swimmer.position).sub(tmpVectorD);swimmer.position.add(tmpVectorC);
   }
   expeditionWorld.resolveDiver(swimmer.position, previousSwimPosition);
+  arrayService?.resolveDiver(swimmer.position,previousSwimPosition);
   if(cruiseActive && Math.abs(swimSpeed)>1 && swimmer.position.distanceToSquared(previousSwimPosition)<delta*delta*.10){
     assistBlockedSeconds+=delta;
     if(assistBlockedSeconds>3){cruiseActive=false;swimReturnToBoat=false;assistBlockedSeconds=0;setNotice('A rock blocks this route. Swim around it, then resume assist.');}
@@ -2005,10 +2022,10 @@ function updateMissions(delta: number) {
     record.checkpoint = 'reef'; persistExpedition();
   }
   if (record.stage === 'reef' && reefComplete(record)) {
-    record.stage = plan.stations.length?'transect':'wreck'; cruiseActive = false; persistExpedition(); setNotice(`${plan.habitat} survey complete. Board the vessel and sail to ${plan.recoveryTitle.toLowerCase()}.`);
+    record.stage = plan.repairRequired?'repair':plan.stations.length?'transect':'wreck'; cruiseActive = false; persistExpedition(); setNotice(plan.repairRequired?'Ivo: The cabinet east of the vault needs commissioning. Follow its bearing.':`${plan.habitat} survey complete. Board the vessel and sail to ${plan.recoveryTitle.toLowerCase()}.`);
   }
-  if ((record.stage === 'wreck'||record.stage==='transect') && Math.hypot(yacht.position.x - plan.secondSite.x, yacht.position.z - plan.secondSite.z) < 45 && record.checkpoint !== record.stage) {
-    record.checkpoint = record.stage; persistExpedition();
+  if ((record.stage === 'wreck'||record.stage==='transect'||record.stage==='repair') && Math.hypot(yacht.position.x - plan.secondSite.x, yacht.position.z - plan.secondSite.z) < 45 && record.checkpoint !== (record.stage==='repair'?'transect':record.stage)) {
+    record.checkpoint = record.stage==='repair'?'transect':record.stage; persistExpedition();
   }
   if(transectReading) {
     const station=plan.stations[transectReading.index];
@@ -2029,6 +2046,7 @@ function updateMissions(delta: number) {
     if (record.checkpoint !== 'harbor') { record.checkpoint = 'harbor'; persistExpedition(); }
   }
   expeditionWorld.updateSites(record, selectedTool);
+  arrayService?.update(active,record.contractId==='array-repair'&&!record.sold?record.arrayRestored===true:progress.voyage.completed.includes('array-repair'));
   if (gameTime > nextSaveAt) { persistExpedition(); nextSaveAt = gameTime + 20; }
 }
 
@@ -2057,6 +2075,7 @@ function objectiveLocation() {
     const point=new THREE.Vector3(BOAT_CATALOG[progress.activeBoat].beam*.58+1.2,0,0).applyQuaternion(yacht.quaternion).add(yacht.position);
     point.y=sampleOceanHeight(point.x,point.z,gameTime)-.2;return point;
   }
+  if(record.stage==='repair')return playerMode==='helm'?new THREE.Vector3(planRepairSite().x,0,planRepairSite().z):arrayService.position.clone();
   if (record.stage === 'briefing' || record.stage === 'return' || record.stage === 'complete') return marinaPosition.clone();
   if (playerMode === 'helm') { const plan=expeditionPlan(record),site = record.stage === 'reef' ? plan.site : plan.secondSite; return new THREE.Vector3(site.x, 0, site.z); }
   if (record.stage === 'reef') {
@@ -2081,6 +2100,7 @@ function useDiveTool() {
   if(playerMode==='walk'){useLandInteraction();return;}
   if (playerMode !== 'swim' || menusOpen() || gameTime - lastToolUse < .65) return;
   const record = progress.expedition;
+  if(record.stage==='repair'&&selectedTool==='scanner'&&arrayRepairReady()){cancelSwimAssist();arrayService.show();return;}
   if (record.stage !== 'reef' && record.stage !== 'wreck' && record.stage!=='transect') { if(selectedTool==='scanner'){emitDiveSonar();return;}setNotice('Begin a research expedition at the harbor first.'); return; }
   lastToolUse = gameTime;
   if (selectedTool === 'camera') {
@@ -2167,6 +2187,7 @@ function renderJournal() {
   if(plan.photoGoal){if(plan.requiredSpecies.length)for(const key of plan.requiredSpecies)goals.push([`Photograph ${SPECIES[key].name}`,r.photos.includes(key)]);else goals.push([`Photograph ${plan.photoGoal} different species`,surveyPhotoCount(r)>=plan.photoGoal]);}
   if(plan.samplesRequired)goals.push(['Collect a water sample',r.waterSample],['Collect a sediment sample',r.sedimentSample]);
   if(plan.recoveryRequired)goals.push(...(plan.stations.length?plan.stations.map((station,index)=>[`Record ${station.name}`,r.transectReadings.includes(index)]as[string,boolean]):[['Free the wreck sensor cable',r.cableFreed],['Recover the research sensor',r.sensorRecovered]]as[string,boolean][]));
+  if(plan.repairRequired)goals.push(['Commission the three isolated array circuits',r.arrayRestored===true]);
   goals.push(['Sell the cargo at the harbor',r.sold]);
   journalContent.innerHTML=`<p class="journal__intro">${plan.title} · Survey ${r.run} · ${completedObjectives(r)}/${objectiveCount(r)} objectives · ${expeditionReward(r)} credits in cargo</p><div class="journal__goals">${goals.map(([name,done])=>`<div class="${done?'is-done':''}"><span>${done?'✓':'○'}</span>${name}</div>`).join('')}</div><h3>Wildlife observations</h3><div class="journal__species">${(Object.entries(SPECIES)as[SpeciesKey,typeof SPECIES[SpeciesKey]][]).map(([key,s])=>`<article class="${r.photos.includes(key)?'is-done':''}">${r.photoImages[key]?`<img src="${r.photoImages[key]}" alt="${s.name} photographed during this survey" loading="lazy">`:""}<small>${r.photos.includes(key)?'Photographed this survey':progress.discoveredSpecies.includes(key)?'Previously discovered':'Not yet photographed'}</small><strong>${s.name}</strong><p>${s.note}</p></article>`).join('')}</div><p class="journal__intro">Autosaved every 20 seconds and after discoveries. Atlas contains campaign records and recovery checkpoints.</p>`;
 }
@@ -2374,7 +2395,8 @@ function emitDiveSonar(manual=true){
   const remaining=manual?SONAR_COOLDOWN-(gameTime-sonarManualStarted):0;
   if(remaining>0){setNotice(`Sonar recharging · ${Math.ceil(remaining)} s.`);return;}
   if(manual)sonarManualStarted=gameTime;
-  sonarResults=identifyScan(progress.expedition,swimmer.position,expeditionWorld.animals);sonarStarted=gameTime;sonarSweeps++;
+  const point=arrayService.position,extra:ScanIdentification[]=progress.expedition.stage==='repair'?[{id:'array-service',name:'Array service station',kind:'Research instrument',note:'Isolated reference channels. West 46 Hz reversed / Center 18 Hz normal / North 32 Hz reversed.',action:'Scanner / commission at the cabinet',x:point.x,y:point.y,z:point.z,distance:swimmer.position.distanceTo(point),bearing:Math.atan2(point.x-swimmer.position.x,-(point.z-swimmer.position.z)),vertical:point.y-swimmer.position.y}]:[];
+  sonarResults=identifyScan(progress.expedition,swimmer.position,expeditionWorld.animals,extra);sonarStarted=gameTime;sonarSweeps++;
   diveSonar.emit(swimmer.position,sonarResults,gameTime);
   if(manual){setNotice(sonarResults.length?`Sonar identified ${sonarResults[0].name} / ${sonarResults.length} contact${sonarResults.length===1?'':'s'}.`:'Sonar: no contacts in range.');music?.playCue('signal');}updateHud();
 }
@@ -2387,6 +2409,25 @@ async function acceptVoyageContract(id:string):Promise<boolean> {
   try{saveProgress(next);}catch{return false;}
   Object.assign(progress,next);transectReading=undefined;cancelSwimAssist();expeditionComplete=false;rewardGranted=false;rewardDoubled=false;
   closeResearchStand();updateMissions(0);updateHud();setNotice(contract.briefing);return true;
+}
+
+async function finishConversation(id:string,choice:string):Promise<boolean>{
+  const next=completeStory(progress,id,choice);
+  if(id==='welcome'&&choice==='depart'){
+    if(!canVisitStand()||progress.expedition.stage!=='briefing')return false;
+    next.expedition.stage='reef';next.expedition.checkpoint='harbor';next.voyage.activeWaypoint=undefined;
+  }
+  try{saveProgress(next);}catch{return false;}
+  Object.assign(progress,next);updateHud();return true;
+}
+
+function planRepairSite(){return expeditionPlan(progress.expedition).secondSite;}
+function arrayRepairReady(){return playerMode==='swim'&&progress.expedition.stage==='repair'&&arrayService?.loaded&&swimmer.position.distanceTo(arrayService.position)<3.5;}
+function finishArrayRepair(circuits:Parameters<typeof commissionArray>[1]){
+  if(!arrayRepairReady())return false;
+  const next=structuredClone(progress);next.expedition=commissionArray(next.expedition,circuits);
+  try{saveProgress(next);}catch{return false;}
+  Object.assign(progress,next);cruiseActive=false;updateHud();music?.playCue('recovery');setNotice('Array feed restored. Return the commissioning record to the research harbor.');return true;
 }
 
 function updateWake(delta: number) {
@@ -2677,6 +2718,8 @@ function applyCameraImpulse(delta: number) {
 function updateHud() {
   const r=progress.expedition;const p=activePlayerPosition();if(!p)return;
   const plan=expeditionPlan(r);
+  const partner=playerMode==='walk'?researchPartners?.nearest(p):undefined;
+  const partnerButton=document.querySelector<HTMLButtonElement>('[data-partner-talk]');if(partnerButton){partnerButton.hidden=!partner;partnerButton.dataset.partner=partner??'';partnerButton.textContent=partner?`Talk to ${partner==='mara'?'Mara':partner==='ivo'?'Ivo':'Selene'}`:'Talk';}
   const target=objectiveLocation();const dx=target.x-p.x,dz=target.z-p.z;const bearing=Math.atan2(dx,-dz);
   if(speedText)speedText.textContent=playerMode==='walk'?walkSpeed.toFixed(1):Math.round((playerMode==='helm'?displaySpeed:Math.abs(swimSpeed))*1.94).toString();
   const unit=document.querySelector('[data-speed-unit]');if(unit)unit.textContent=playerMode==='walk'?'m/s':'kt';
@@ -2689,7 +2732,7 @@ function updateHud() {
   if(depthText)depthText.textContent=Math.max(0,sampleOceanHeight(p.x,p.z,gameTime)-p.y).toFixed(1);if(airText)airText.textContent=Math.ceil(oxygen).toString();
   airStatus?.classList.toggle('is-low',oxygen<25);if(modeToggle){modeToggle.textContent=playerMode==='helm'?'Dive':playerMode==='walk'?walkBoardRequested?'Cancel boat return':canBoardFromIsland()?'Board boat':'Return to boat':swimReturnToBoat?'Cancel boat return':canBoardSwimmer()?'Board boat':'Return to boat';modeToggle.disabled=playerMode==='walk'&&walkRouting;}
   if(walkButton){walkButton.hidden=playerMode!=='helm';walkButton.disabled=!boatAtLanding();}
-  const objectives={briefing:'Begin your research expedition',reef:playerMode==='helm'?r.route==='passage'?'Sail to the coral garden':r.route==='lagoon'?'Sail to the turtle lagoon':'Sail to the reef survey site':`${plan.habitat} · ${surveyPhotoCount(r)}/${plan.photoGoal} species · ${Number(r.waterSample)+Number(r.sedimentSample)}/2 samples`,wreck:playerMode==='helm'?'Sail to the wreck recovery site':r.cableFreed?'Retrieve the research sensor':'Free the snagged sensor cable',transect:playerMode==='helm'?`Sail to the ${plan.recoveryTitle.toLowerCase()}`:`${plan.recoveryTitle} · ${r.transectReadings.length}/3 readings`,return:'Return to the research harbor',complete:'Expedition complete · new gear awaits'};
+  const objectives={briefing:'Begin your research expedition',repair:playerMode==='helm'?'Sail to the array service station':'Commission the array circuits',reef:playerMode==='helm'?r.route==='passage'?'Sail to the coral garden':r.route==='lagoon'?'Sail to the turtle lagoon':'Sail to the reef survey site':`${plan.habitat} · ${surveyPhotoCount(r)}/${plan.photoGoal} species · ${Number(r.waterSample)+Number(r.sedimentSample)}/2 samples`,wreck:playerMode==='helm'?'Sail to the wreck recovery site':r.cableFreed?'Retrieve the research sensor':'Free the snagged sensor cable',transect:playerMode==='helm'?`Sail to the ${plan.recoveryTitle.toLowerCase()}`:`${plan.recoveryTitle} · ${r.transectReadings.length}/3 readings`,return:'Return to the research harbor',complete:'Expedition complete · new gear awaits'};
   if(objectiveText)objectiveText.textContent=objectives[r.stage];
   if(r.contractId&&r.stage==='reef'&&objectiveText)objectiveText.textContent=playerMode==='helm'?`Sail to ${plan.habitat.toLowerCase()}`:[plan.photoGoal?`${surveyPhotoCount(r)}/${plan.photoGoal} photographs`:null,plan.samplesRequired?`${Number(r.waterSample)+Number(r.sedimentSample)}/2 samples`:null].filter(Boolean).join(' / ');
   if(objectiveText&&playerMode==='swim'&&(swimReturnToBoat||r.stage==='return'||habitatBoatReturn()))objectiveText.textContent='Return to your vessel · surface and board';
@@ -2719,9 +2762,13 @@ function updateHud() {
     prompt=r.stage==='return'?'Cargo secured. Return to the research harbor.':r.stage==='complete'?'Survey complete. Begin another expedition at the harbor.':'Visit the harbor stand to begin research.';
   }
   if(selectedTool==='scanner'&&r.stage!=='transect')interactionReady=gameTime-sonarManualStarted>=SONAR_COOLDOWN||(r.stage==='wreck'&&r.cableFreed&&swimmer.position.distanceTo(new THREE.Vector3(SAMPLE_SITES.sensor.x,SAMPLE_SITES.sensor.y,SAMPLE_SITES.sensor.z))<3.6);
+  if(r.stage==='repair'&&selectedTool==='scanner'){interactionReady=arrayRepairReady()||gameTime-sonarManualStarted>=SONAR_COOLDOWN;prompt=`Array service station / ${Math.round(p.distanceTo(arrayService.position))} m${arrayRepairReady()?' / ready to commission':!arrayService.loaded?' / preparing station':''}`;}
   const sonarButton=document.querySelector<HTMLButtonElement>('[data-sonar-pulse]');if(sonarButton){sonarButton.hidden=selectedTool!=='scanner'||r.stage!=='transect';sonarButton.disabled=playerMode!=='swim'||!!transectReading||gameTime-sonarManualStarted<SONAR_COOLDOWN;}
   interactionReady=interactionReady&&gameTime-lastToolUse>=.65;
   if(toolPrompt)toolPrompt.textContent=prompt;if(interactButton){interactButton.disabled=playerMode!=='swim'||!interactionReady;interactButton.textContent=selectedTool==='camera'?'Photograph · F':selectedTool==='sampler'?'Collect sample · F':selectedTool==='cutter'?'Release cable · F':r.stage==='transect'?transectReading?'Acquiring…':'Acquire reading · F':'Scan / recover · F';}
+  if(interactButton&&r.stage==='repair'&&selectedTool==='scanner'&&arrayRepairReady())interactButton.textContent='Commission array / F';
+  if(r.stage==='repair'&&npcText&&oxygen>=25)npcText.textContent='Ivo: Match frequencies and polarity to the receiver plates. Test before restoring the feed.';
+  if(r.stage==='repair'&&guide)guide.textContent=`${formatHeading(bearing)} / ${Math.round(p.distanceTo(target))} m / Array service station`;
   const readingProgress=document.querySelector<HTMLProgressElement>('[data-reading-progress]');if(readingProgress){readingProgress.hidden=!transectReading;readingProgress.value=transectReading?.seconds??0;}
   const equipmentRow=document.querySelector<HTMLElement>('[data-dive-equipment]');if(equipmentRow)equipmentRow.hidden=!progress.fieldEquipment?.scooter;
   const driveButton=document.querySelector<HTMLButtonElement>('[data-scooter-toggle]');if(driveButton){driveButton.disabled=scooterLoading;driveButton.setAttribute('aria-pressed',String(scooterEnabled));driveButton.querySelector('span')!.textContent=scooterLoading?'Loading drive…':scooterEnabled?'Drive on':'Dive drive';}
@@ -2811,6 +2858,8 @@ function createInput() {
   actionMenu.addEventListener('click',event=>{if((event.target as Element).closest('button'))setActionMenu(false);});
   document.addEventListener('pointerdown',event=>{if(!(event.target as Element).closest('.action-dock'))setActionMenu(false);});
   window.addEventListener('keydown', (event) => {
+    if(arrayService?.open){if(event.code==='Escape'){event.preventDefault();arrayService.close();}return;}
+    if(storyDialog?.open){if(event.code==='Escape'){event.preventDefault();storyDialog.close();}return;}
     if (adBusy || inventory?.open || voyageAtlas?.open) return;
     if(event.code==='Escape'&&actionMenu.classList.contains('is-open')){setActionMenu(false);event.preventDefault();return;}
     const menuOpen=menusOpen();
@@ -2906,6 +2955,8 @@ function createInput() {
   document.querySelectorAll('[data-atlas-toggle]').forEach(button=>button.addEventListener('click',()=>openVoyageAtlas('chart')));
   document.querySelector('[data-contracts-toggle]')?.addEventListener('click',()=>openVoyageAtlas('contracts'));
   document.querySelector('[data-save]')?.addEventListener('click',()=>persistExpedition(true));
+  document.querySelector('[data-story-toggle]')?.addEventListener('click',()=>{if(!menusOpen())storyDialog.show();});
+  document.querySelector('[data-partner-talk]')?.addEventListener('click',()=>{if(!menusOpen()){const partner=researchPartners.nearest(activePlayerPosition());if(partner)storyDialog.show(partner);}});
   document.querySelector('[data-rescue]')?.addEventListener('click',rescueDiver);
   walkButton?.addEventListener('click',()=>enterWalkMode());
   landInteract?.addEventListener('click',useLandInteraction);
@@ -2953,7 +3004,7 @@ function clearPlayerInput() {
   pointerLook = undefined; gamepadThrottle = 0; gamepadSteer = 0; gamepadBoost = false;
 }
 
-function menusOpen() { return adBusy || boatSwitching || inventory?.open || voyageAtlas?.open || isPaused || harbor?.classList.contains('is-open') || journalPanel?.classList.contains('is-open'); }
+function menusOpen() { return adBusy || boatSwitching || inventory?.open || voyageAtlas?.open || storyDialog?.open || arrayService?.open || isPaused || harbor?.classList.contains('is-open') || journalPanel?.classList.contains('is-open'); }
 function openVoyageAtlas(view:'chart'|'contracts') {if(adBusy||boatSwitching||inventory?.open)return;closeResearchStand();toggleJournal(false);togglePause(false);voyageAtlas.show(view);}
 function resumePlatformIfPlaying() { if (!menusOpen()) platform.gameplayStart(); }
 

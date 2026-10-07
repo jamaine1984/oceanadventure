@@ -324,6 +324,52 @@ button:focus-visible {
   border-radius: 8px;
 }
 
+.story-radio { position:fixed;inset:auto;left:20px;bottom:92px;margin:0;width:min(540px,calc(100vw - 40px));max-height:calc(100dvh - 40px);overflow:auto;padding:0;border:1px solid #88a4a5;border-radius:6px;background:#12343deF;color:#f4f0df;box-shadow:0 18px 60px #03131766; }
+.story-radio::backdrop { background:#001b261c; }
+.story-radio header { display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid #78979955; }
+.story-radio header span { display:flex;align-items:center;gap:8px;font-size:11px;color:#d8c28d; }
+.story-radio button { min-height:44px;border:1px solid #769394;border-radius:4px;background:#21444e;color:#f4f0df;padding:8px 12px;font:inherit;font-size:12px;cursor:pointer; }
+.story-radio button:focus-visible { outline:3px solid #edcc80;outline-offset:2px; }
+.story-radio button:disabled { opacity:.5;cursor:default; }
+.story-radio header button { display:grid;place-items:center;width:44px;padding:8px; }
+.story-radio nav { display:flex;gap:6px;padding:10px 14px; }
+.story-radio nav button { flex:1; }
+.story-radio nav [aria-pressed=true] { color:#15303a;background:#dfc588; }
+.story-radio__content { padding:0 14px 14px; }
+.story-radio__body { display:grid;grid-template-columns:90px minmax(0,1fr);gap:14px; }
+.story-radio__portrait { position:relative;height:120px;overflow:hidden;border-radius:4px;background:#9aa8a8; }
+.story-radio__portrait img { position:absolute;width:440%;height:auto;max-width:none;left:-170%;top:-35%; }
+.story-radio__body small { font-size:10px;color:#e1c78c; }
+.story-radio h2 { font-size:18px;margin:5px 0 8px; }
+.story-radio p { font-size:13px;line-height:1.55;margin:0; }
+.story-radio__choices { display:flex;flex-wrap:wrap;gap:7px;margin-top:14px; }
+.story-radio__choices button { flex:1 1 150px; }
+.story-radio__status:empty { display:none; }
+.story-radio__status { padding:0 14px 14px;color:#efc893; }
+.array-service { width:min(650px,calc(100vw - 24px));max-height:calc(100dvh - 24px);overflow:auto;padding:18px;border:1px solid #87a7a6;border-radius:6px;background:#12343d;color:#f4f0df; }
+.array-service::backdrop { background:#001b2644; }
+.array-service header { display:flex;justify-content:space-between;align-items:center;gap:12px; }
+.array-service h2 { font-size:20px;margin:0; }
+.array-service p { font-size:13px;line-height:1.5; }
+.array-service button,.array-service select { min-height:44px;border:1px solid #8aa9a8;border-radius:4px;background:#24464e;color:#f4f0df;padding:8px;font:inherit;font-size:13px; }
+.array-service button:disabled { opacity:.5; }
+.array-service button:focus-visible,.array-service select:focus-visible,.array-service input:focus-visible { outline:3px solid #e9ca83;outline-offset:2px; }
+.array-service__circuits { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px; }
+.array-service fieldset { min-width:0;margin:0;padding:12px 8px;border:1px solid #7f999a; }
+.array-service legend { font-size:11px;padding:4px; }
+.array-service label { display:flex;align-items:center;gap:6px;font-size:12px;flex-wrap:wrap;margin-bottom:10px; }
+.array-service select { width:100%; }
+.array-service input { width:22px;height:22px;accent-color:#debf74; }
+.array-service output { display:block;font-size:12px;color:#ebbb8a; }
+.array-service output.is-verified { color:#97dcc3; }
+.array-service__actions { display:flex;flex-wrap:wrap;gap:10px;margin-top:16px; }
+.array-service__actions button { flex:1 1 180px; }
+.array-service__status { color:#ebd399; }
+@media(max-width:500px) { .array-service__circuits { grid-template-columns:1fr; }.array-service { padding:12px; } }
+[data-partner-talk][hidden] { display:none; }
+@media(max-width:760px) { .story-radio { left:12px;bottom:12px;width:calc(100vw - 24px);max-height:calc(100dvh - 24px); }.story-radio__body { grid-template-columns:70px minmax(0,1fr);gap:10px; }.story-radio__portrait { height:96px; }.story-radio h2 { font-size:16px; } }
+@media(max-height:520px) { .story-radio { bottom:12px;max-height:calc(100dvh - 24px); } }
+
 .action-dock__secondary { display:contents; }
 #game-root.actions-open .action-dock { z-index:7; }
 .action-dock .action-dock__more { display:none; }

@@ -1,13 +1,13 @@
 export type DistrictKey = 'bay' | 'lagoon' | 'passage';
 export const CHART_BOUNDS={minX:-230,maxX:260,minZ:-225,maxZ:105} as const;
-export type ContractFamily = 'survey' | 'photography' | 'sampling' | 'mapping' | 'recovery';
+export type ContractFamily = 'survey' | 'photography' | 'sampling' | 'mapping' | 'recovery' | 'repair';
 export type ContractSpecies = 'turtle' | 'ray' | 'tang' | 'butterflyfish' | 'anthias' | 'reefshark' | 'hammerhead';
 export type ContractDefinition = {
   id: string; title: string; district: DistrictKey; route: 'reef' | 'lagoon' | 'passage';
   family: ContractFamily; client: 'mara' | 'ivo' | 'selene';
   briefing: string; debrief: string; story?: number; prerequisites: readonly string[];
   species: readonly ContractSpecies[]; photoGoal: number; samples: boolean; readings: boolean;
-  recovery: boolean; bonus: number; reputation: number; blueprint?: 'survey-anchor' | 'scooter-drive';
+  recovery: boolean; repair?: boolean; bonus: number; reputation: number; blueprint?: 'survey-anchor' | 'scooter-drive';
 };
 export const DISTRICTS = [
   { id: 'bay' as const, name: 'Bluewater Bay', x: 0, z: -86, radius: 60, requires: '', color: '#68cbd4', description: 'Coral shelves, the research harbor and the lost survey launch.' },
@@ -21,6 +21,7 @@ export const CLIENTS = {
 } as const;
 
 export const CONTRACTS: readonly ContractDefinition[] = [
+  { id:'array-repair',title:'Wake the Array',district:'passage',route:'passage',family:'repair',client:'ivo',story:4,prerequisites:['passage-origin'],species:[],photoGoal:0,samples:false,readings:false,recovery:false,repair:true,bonus:800,reputation:35,briefing:'Restore the service cabinet east of the vault. Match each receiver frequency and polarity, test the isolated circuits, then return the commissioning record to Ivo.',debrief:'The array is transmitting again. The restored reference channels can support future expeditions beyond the bay.' },
   { id:'bay-signal',title:'The Lost Signal',district:'bay',route:'reef',family:'survey',client:'mara',story:1,prerequisites:[],species:[],photoGoal:3,samples:true,readings:false,recovery:true,bonus:250,reputation:25,briefing:'Document the reef, then recover the survey launch\'s stranded sensor. Its final transmission points west.',debrief:'The sensor holds three matching pulses from the lagoon. Ivo believes an older monitoring network is still responding.',blueprint:'survey-anchor' },
   { id:'bay-portrait',title:'Life on the Coral Shelf',district:'bay',route:'reef',family:'photography',client:'selene',prerequisites:[],species:['butterflyfish','tang','anthias'],photoGoal:3,samples:false,readings:false,recovery:false,bonus:180,reputation:12,briefing:'Photograph butterflyfish, blue tang and anthias in the bay. Leave the habitat undisturbed.',debrief:'Three reef species documented. These images establish our shallow-water baseline.' },
   { id:'bay-water',title:'The Water Between',district:'bay',route:'reef',family:'sampling',client:'selene',prerequisites:[],species:[],photoGoal:0,samples:true,readings:false,recovery:false,bonus:160,reputation:10,briefing:'Collect the bay\'s marked water and sediment samples for the habitat laboratory.',debrief:'Both samples arrived sealed. The bay baseline is ready for comparison with the lagoon.' },
@@ -40,7 +41,7 @@ export const CONTRACTS: readonly ContractDefinition[] = [
 export function contractById(id: unknown) { return typeof id === 'string' ? CONTRACTS.find(contract => contract.id === id) : undefined; }
 export function contractAvailable(contract: ContractDefinition, completed: readonly string[]) { return contract.prerequisites.every(id => completed.includes(id)); }
 export function districtUnlocked(id: DistrictKey, completed: readonly string[]) { const district=DISTRICTS.find(item=>item.id===id);return !!district&&(!district.requires||completed.includes(district.requires)); }
-export function nextStoryContract(completed: readonly string[]) { return CONTRACTS.find(contract=>contract.story&&!completed.includes(contract.id)&&contractAvailable(contract,completed)); }
+export function nextStoryContract(completed: readonly string[]) { return [...CONTRACTS].sort((a,b)=>(a.story??Infinity)-(b.story??Infinity)).find(contract=>contract.story&&!completed.includes(contract.id)&&contractAvailable(contract,completed)); }
 export const LANDMARKS = [
   { id:'harbor',name:'Research harbor',district:'bay' as const,x:0,z:28,radius:35 },
   { id:'reef',name:'Coral shelf',district:'bay' as const,x:0,z:-86,radius:40 },
@@ -49,4 +50,5 @@ export const LANDMARKS = [
   { id:'transect',name:'Acoustic outer bank',district:'lagoon' as const,x:-158,z:-160,radius:35 },
   { id:'garden',name:'Eastern coral garden',district:'passage' as const,x:146,z:-90,radius:35 },
   { id:'vault',name:'Limestone vault',district:'passage' as const,x:166,z:-140,radius:30 },
+  { id:'array',name:'Array service station',district:'passage' as const,x:190,z:-156,radius:18 },
 ] as const;

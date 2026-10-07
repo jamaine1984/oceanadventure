@@ -67,7 +67,7 @@ json_bytes=json.dumps(result,separators=(',',':')).encode()
 while len(json_bytes)%4:json_bytes+=b' '
 while len(binary)%4:binary.append(0)
 blob=struct.pack('<III',0x46546c67,2,28+len(json_bytes)+len(binary))+struct.pack('<II',len(json_bytes),0x4e4f534a)+json_bytes+struct.pack('<II',len(binary),0x004e4942)+binary
-runtime=ROOT/'public/models/ocean-player-diver.glb';runtime.write_bytes(blob)
+runtime=ROOT/'assets/characters/ocean-player-diver-legacy-runtime.glb';runtime.write_bytes(blob)
 print('PACKAGED_DIVER',len(blob),[a['name'] for a in result['animations']])
 
 # Editable scene and a separate single-view inspection render.

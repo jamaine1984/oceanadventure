@@ -8,7 +8,7 @@ export function scannerReady(state: { swimming: boolean; selected: boolean; dept
   return state.swimming && state.selected && state.depth > .6 && !state.paused && !state.acquiring && state.time - state.lastSweep >= SONAR_COOLDOWN;
 }
 
-export function identifyScan(record: ExpeditionRecord, position: { x: number; y: number; z: number }, animals: readonly WildlifeEcho[]): ScanIdentification[] {
+export function identifyScan(record: ExpeditionRecord, position: { x: number; y: number; z: number }, animals: readonly WildlifeEcho[],extra:readonly ScanIdentification[]=[]): ScanIdentification[] {
   const research = sonarContacts(record, position).map(contact => ({
     ...contact, kind: 'Research instrument' as const,
     note: contact.id === 'water' ? 'A water-quality sampling station.' : contact.id === 'sediment' ? 'A seabed sediment collection station.' : contact.id === 'cable' ? 'A research tether caught beside the wreck.' : contact.id === 'sensor' ? 'A recoverable ocean monitoring sensor.' : 'A fixed acoustic survey station.',
@@ -24,5 +24,5 @@ export function identifyScan(record: ExpeditionRecord, position: { x: number; y:
       action: 'Camera / photograph to record an observation', x: p.x, y: p.y, z: p.z, distance, bearing: Math.atan2(dx, -dz), vertical });
   }
   // Research instruments retain priority; moving wildlife positions are last-sweep fixes, not live tracking.
-  return [...research, ...[...wildlife.values()].sort((a, b) => a.distance - b.distance)].slice(0, 5);
+  return [...research,...extra.filter(contact=>Number.isFinite(contact.distance)&&contact.distance<=65), ...[...wildlife.values()].sort((a, b) => a.distance - b.distance)].slice(0, 5);
 }

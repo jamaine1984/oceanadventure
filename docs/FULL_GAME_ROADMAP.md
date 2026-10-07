@@ -1,6 +1,6 @@
 # Ocean Adventure: full-game production roadmap
 
-Approved October 5, 2026. All work stays inside the standalone Ocean Adventure project. Preserve the ocean rendering, supplied GLB player, detailed boats, music controls, safe recovery and earned-progress semantics. Ads, publishing and deployment are not part of this implementation pass.
+Approved October 5, 2026. All work stays inside the standalone Ocean Adventure project. Preserve the ocean rendering, supplied GLB player, detailed boats, music controls, safe recovery and earned-progress semantics. Ads remain deferred. The user subsequently authorized committing and pushing verified deliveries.
 
 ## Completion Standard
 
@@ -12,8 +12,8 @@ No feature is complete merely because it has a menu, a catalog entry or a passin
 | --- | --- |
 | Five distinct ocean regions | Pending new authored regional environments; current bay, lagoon and passage retained |
 | Discovery map | Implemented first-bay chart, proximity discoveries, editable pins and physical navigation; larger regional chart pending |
-| Connected campaign | Implemented three linked contract definitions, unlocks and archived debriefs; campaign-wide authored expansion pending |
-| Selectable contract board | Implemented fifteen contracts across five activity families in the existing districts; full campaign catalog pending |
+| Connected campaign | Implemented four linked contract definitions, opening/earned radio conversations and archived debriefs; campaign-wide authored expansion pending |
+| Selectable contract board | Implemented sixteen contracts across six activity families in the existing districts; full campaign catalog pending |
 | Enterable underwater landmarks | Existing limestone vault retained; additional wreck interiors/facilities pending |
 | Wildlife behavior and photography depth | Existing seven species retained; habitat expansion and behavior records pending |
 | Capability-unlocking tools | Range-limited sonar and blueprint-unlocked rechargeable Manta dive drive implemented; ROV and broader tool progression pending |
@@ -21,7 +21,7 @@ No feature is complete merely because it has a menu, a catalog entry or a passin
 | Research outposts | Pending authored station modules and placement/recovery rules |
 | Salvage and blueprint progression | Earned blueprint rewards and credit-based dive-drive fabrication implemented; salvage materials and wider crafting pending |
 | Consequential weather and time | Existing sea states retained; forecast, day/night and current systems pending |
-| NPC relationships | Implemented three named contract clients, earned reputation and capped outfitter discounts; new character art and deeper mission chains pending |
+| NPC relationships | Implemented three named contract clients, authored radio conversations, permitted temporary NPCs, earned reputation and capped outfitter discounts; final rigged NPCs and deeper mission chains pending |
 | Endgame expeditions | Repeatable selectable contracts implemented; multi-stop mastery expeditions pending |
 | Reliable saves and recovery | Implemented migration, rolling local recovery and validated export/import; cloud sync pending |
 | Streaming and technical release foundation | Pending regional asset streaming; startup profiling retained |
@@ -35,6 +35,36 @@ No feature is complete merely because it has a menu, a catalog entry or a passin
 5. Run all release gates; profile devices and hosted embeds. Only then remove the production HOLD.
 
 Live Blender MCP was unavailable at the start of this pass. Do not describe new Blender assets as authored until creation and gameplay-camera inspection actually occur. No placeholder destination will be exposed as a finished region.
+
+## Current Nine-Area Delivery
+
+The October 7 approval covers all nine production recommendations, not just the opening. Nine separate visual targets were generated first and preserved in `assets/concepts/full-game-v1`, with normalized construction briefs in `PROMPTS.md`. Unused concepts are excluded from the runtime package.
+
+| Approved area | Current state |
+| --- | --- |
+| Authored campaign | Four linked chapters; opening, earned revelations and archived reports implemented; larger regional story still pending |
+| Five playable regions | Three existing districts retained; Wreckward Reach and Pelagic Observatory are visual targets, not playable regions yet |
+| Distinct mission mechanics | Existing surveys/recovery/transects plus actual isolated-circuit commissioning; enterable freighter and ROV still pending |
+| NPC storytelling | Radio questions, saved decisions and three temporary procedural supporting NPCs; final supplied NPC GLBs and broader chains pending |
+| Earned progression | Existing boats/upgrades/blueprints/dive drive retained; materials, outposts and broader capability economy pending |
+| Consequential environment | Existing sea states retained; schedules, currents, forecast and day/night pending |
+| Discovery and endgame | Existing map/pins/repeat contracts retained; multi-region mastery still pending |
+| Playable opening | The Lost Signal conversation launches the real unearned mission; complete normal-play onboarding/retention still needs human assessment |
+| Full release verification | Focused automated checks underway; physical-device, sustained performance, long-campaign and hosted gates remain open |
+
+The new repair cabinet is authored through the existing portable Blender 5.2.2 fallback because live MCP connection failed. `scripts/build_array_service.py` preserves a reproducible isolated source and exports `public/models/array_service_station.glb`; the existing boats and player are not regenerated. The unused legacy diver motion-source GLB moved out of the shipped public directory into `assets/characters`, retaining its bytes and updating its packaging scripts. This reduces runtime packaging, not proven loading time or FPS.
+
+### Verified Story and Repair Delivery
+
+All 84 focused Node checks pass, including the supplied player's preserved mesh/rig/clips, story gates, save failure, migration, partial legacy passage resume, repair diagnostics, actual Three GLB loading, and twelve batched NPC meshes across three named slots. The final build and portal package pass at 26 files / 49.32 MB. Twenty selected existing Playwright cases pass in a fresh single run: expedition state, grants, photograph framing and responsive/touch/canvas checks. This is not a fresh full 42-case release gate.
+
+The normal opening was played in an isolated browser through its question, injected save failure, retry, saved departure, reload, partner selection, pause and Escape/inventory paths. Portraits and radio bounds passed at 1280x720, 390x844, 844x390 and 320x568. The published scripts in `scripts/verify-story-browser.cjs` and `scripts/verify-array-browser.cjs` reproduce these checks in a disposable CLI profile.
+
+The fourth mission was accepted at harbor with only three prerequisite receipts seeded, and no credits, repair or cargo pre-earned. Actual controls sailed to the station, descended, withdrew to the vessel, redove, tested incorrect/correct routing and polarity, retried a failed commissioning save, returned to harbor, earned 800 credits, prevented duplicate sale and retained the receipt after reload. The stronger withdrawal probe recorded the last swimming position near the yacht and surface before helm transition. These checks prove the new mission, not an earned four-chapter campaign.
+
+The authored cabinet renders in the arrival capture, and its commissioning panel remains bounded at all four sizes with scrolling in short views. A separately instantiated browser controller verified the actual loaded GLB's amber/green emissive state; it is not an in-world post-repair screenshot. This caught and repaired Three's normalized-node-name lookup. Physical walking reached the research and outfitter counters and opened Mara/Ivo conversations while retaining the real GLB player. Screenshots show the three permitted temporary supporting figures. They are not final character art.
+
+The single critic found no remaining concrete P1/P2 within this scoped delivery after the dismissed-report, landscape, return-routing and migration repairs. Its visual score remains 7.6/10 under the unchanged rubric; gameplay remains provisional. The walkthrough's NPC captures displayed 1 and 18 FPS during non-isolated interaction/loading samples, not benchmark averages. No universal loading improvement, sustained 60 FPS or production certification is claimed. Performance, the two new regions, ROV/material crafting/outposts, environmental schedules, endgame, asset-rights review, human long-campaign play and physical-device/hosted gates remain open. Production remains HOLD.
 
 ## First Foundation Verification
 

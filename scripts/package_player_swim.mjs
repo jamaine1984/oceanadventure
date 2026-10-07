@@ -9,7 +9,7 @@ function read(path){
   if(b.readUInt32LE(0)!==0x46546c67||b.readUInt32LE(4)!==2)throw new Error('Expected GLB 2');
   return {json:JSON.parse(b.subarray(20,20+length).toString()),bin:b.subarray(28+length)};
 }
-const land=read(backup),swim=read('public/models/ocean-player-diver.glb');
+const land=read(backup),swim=read('assets/characters/ocean-player-diver-legacy-runtime.glb');
 const result=structuredClone(land.json),chunks=[land.bin.subarray(0,land.json.buffers[0].byteLength)];
 let length=chunks[0].length;
 function append(data){

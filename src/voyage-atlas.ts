@@ -81,9 +81,9 @@ export class VoyageAtlas {
     const list=element('div',undefined,'atlas__contracts');
     for(const contract of CONTRACTS.filter(item=>item.district===this.district)){
       const article=element('article',undefined,'atlas__contract'),head=element('div',undefined,'atlas__contract-head');
-      head.append(element('span',contract.story?`Campaign ${contract.story}/3`:contract.family),element('span',`${CLIENTS[contract.client].name} / +${contractReputationReward(contract,state.completed)} reputation`));
+      head.append(element('span',contract.story?`Campaign ${contract.story}/${CONTRACTS.filter(item=>item.story).length}`:contract.family),element('span',`${CLIENTS[contract.client].name} / +${contractReputationReward(contract,state.completed)} reputation`));
       article.append(head,element('h3',contract.title),element('p',contract.briefing));
-      const objectives=[contract.photoGoal?`${contract.photoGoal} photographs`:null,contract.samples?'2 samples':null,contract.readings?'3 readings':null,contract.recovery?'Sensor recovery':null].filter(Boolean);
+      const objectives=[contract.photoGoal?`${contract.photoGoal} photographs`:null,contract.samples?'2 samples':null,contract.readings?'3 readings':null,contract.recovery?'Sensor recovery':null,contract.repair?'3 isolated circuits':null].filter(Boolean);
       article.append(element('small',objectives.join(' / ')));
       const completed=state.completions[contract.id]??0,active=progress.expedition.contractId===contract.id&&!progress.expedition.sold,available=contractAvailable(contract,state.completed);
       const action=this.button(active?'Active expedition':!available?'Locked':completed?`Repeat / ${completed} completed`:'Accept contract',()=>{void this.accept(contract.id);},Compass);action.dataset.acceptContract=contract.id;
@@ -94,7 +94,7 @@ export class VoyageAtlas {
   }
   private async accept(id:string){if(this.busy)return;this.busy=true;this.render();try{if(await this.depart(id))this.dialog.close();else this.message.textContent='Departure could not be saved. Your current expedition is unchanged.';}finally{this.busy=false;if(this.open)this.render();}}
   private renderLog(){
-    const state=this.getProgress().voyage,story=CONTRACTS.filter(contract=>contract.story),next=nextStoryContract(state.completed);
+    const state=this.getProgress().voyage,story=CONTRACTS.filter(contract=>contract.story).sort((a,b)=>a.story-b.story),next=nextStoryContract(state.completed);
     this.contents.append(element('h3','The Silent Array'),element('p',next?`Next chapter: ${next.title}`:'Campaign complete. Follow-up contracts remain available.','atlas__description'));
     const list=element('div',undefined,'atlas__log');
     for(const contract of story){const completed=state.completed.includes(contract.id),known=completed||contractAvailable(contract,state.completed);const entry=element('article');entry.append(element('span',`Chapter ${contract.story} / ${completed?'Archived':known?'Available':'Unresolved'}`),element('h3',known?contract.title:'Unresolved transmission'),element('p',completed?contract.debrief:known?contract.briefing:'The previous expedition must resolve this bearing.'));if(completed&&contract.blueprint)entry.append(element('small',contract.blueprint==='survey-anchor'?'Blueprint archived: survey anchor':'Blueprint archived: scooter drive'));list.append(entry);}this.contents.append(list);
