@@ -1,3 +1,4 @@
+import { GoogleH5Ads } from './google-h5';
 type AdCallbacks = { adStarted: () => void; adFinished: () => void; adError: () => void };
 
 type CrazySdk = {
@@ -24,7 +25,7 @@ declare global {
   }
 }
 
-export type PortalName = 'standalone' | 'crazygames' | 'poki';
+export type PortalName = 'standalone' | 'crazygames' | 'poki' | 'google';
 
 function loadScript(src: string) {
   return new Promise<void>((resolve, reject) => {
@@ -47,11 +48,15 @@ class PlatformBridge {
   name: PortalName = 'standalone';
   storage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem' | 'clear'> = localStorage;
   private playing = false;
+  private google = new GoogleH5Ads();
 
   async initialize() {
     const requested = new URLSearchParams(location.search).get('portal');
     const host = location.hostname;
-    if (requested === 'crazygames' || host.includes('crazygames.')) {
+    if (requested === 'google' || host === 'crateshipgames.com' || host.endsWith('.crateshipgames.com')) {
+      this.name = 'google';
+      await this.google.initialize();
+    } else if (requested === 'crazygames' || host.includes('crazygames.')) {
       try {
         await loadScript('https://sdk.crazygames.com/crazygames-sdk-v3.js');
         await window.CrazyGames?.SDK.init();
@@ -95,10 +100,17 @@ class PlatformBridge {
   }
 
   supportsRewardedAds() {
-    return this.name !== 'standalone';
+    return this.name === 'google' ? this.google.ready : this.name !== 'standalone';
   }
 
-  async rewardedBreak(onStart: () => void, onFinish: () => void) {
+  setSound(on: boolean) { if (this.name === 'google') this.google.setSound(on); }
+
+  async interstitialBreak(onStart: () => void, onFinish: () => void) {
+    if (this.name === 'google') await this.google.request('next', onStart, onFinish);
+  }
+
+  async rewardedBreak(onStart: () => void, onFinish: () => void, offer?: (show: () => void, decline: () => void) => void) {
+    if (this.name === 'google') return this.google.request('reward', onStart, onFinish, offer);
     if (this.name === 'poki' && window.PokiSDK) {
       const rewarded = await window.PokiSDK.rewardedBreak({ size: 'medium', onStart });
       onFinish();

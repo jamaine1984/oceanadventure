@@ -17,39 +17,87 @@
       </div>
       <section class="hud" aria-label="Voyage status">
         <div class="hud__mission">
-          <span class="hud__eyebrow">Aurora expedition</span>
-          <strong data-objective>Reach the first signal buoy</strong>
+          <span class="hud__eyebrow" data-vessel-title>Aurora expedition</span>
+          <strong data-objective>Welcome to the research harbor</strong>
           <span data-npc>Mara is scanning the horizon.</span>
         </div>
         <div class="hud__strip">
           <span><b data-mode>Helm</b></span>
-          <span><b data-speed>0</b> kt</span>
-          <span data-heading>N</span>
+          <span><b data-speed>0</b> <i data-speed-unit>kt</i></span>
+          <span data-heading data-sailing-stat>N</span>
           <span>Target <b data-target-range>--</b> m</span>
-          <span>Wind <b data-wind>15</b> kt</span>
+          <span data-sailing-stat>Wind <b data-wind>15</b> kt</span>
           <span data-swim-stat>Depth <b data-depth>0.0</b> m</span>
           <span class="air-status" data-swim-stat>Air <b data-air>100</b>%</span>
           <span><b data-fps>60</b> fps</span>
-          <span><b data-progress>0</b>/5 signals</span>
+          <span><b data-progress>0</b>/<b data-objective-total>8</b> objectives</span>
           <span class="credits"><b data-credits>0</b> credits</span>
         </div>
-      </section>
-      <section class="sea-state" aria-label="Sea state">
-        <span>Sea state</span>
-        <div class="sea-state__control">
-          <button type="button" data-weather="calm" aria-pressed="false">Calm</button>
-          <button type="button" data-weather="bluewater" aria-pressed="true">Bluewater</button>
-          <button type="button" data-weather="storm" aria-pressed="false">Storm</button>
-        </div>
+        <section class="sea-state" aria-label="Sea state">
+          <span>Sea state</span>
+          <div class="sea-state__control">
+            <button type="button" data-weather="calm" aria-pressed="false">Calm</button>
+            <button type="button" data-weather="bluewater" aria-pressed="true">Bluewater</button>
+            <button type="button" data-weather="storm" aria-pressed="false">Storm</button>
+          </div>
+        </section>
       </section>
       <div class="action-dock">
-        <button class="pause-toggle" type="button" data-pause-toggle aria-label="Pause" title="Pause">||</button>
-        <button class="music-toggle" type="button" data-music-toggle>Music off</button>
+        <button class="pause-toggle" type="button" data-pause-toggle aria-label="Pause" title="Pause"><i data-lucide="pause" aria-hidden="true"></i></button>
+        <button type="button" data-inventory-toggle aria-label="Open inventory" title="Inventory"><i data-lucide="package" aria-hidden="true"></i></button>
+        <button class="action-dock__more" type="button" data-action-menu-toggle aria-label="More voyage actions" title="More voyage actions" aria-expanded="false" aria-controls="more-game-actions"><i data-lucide="ellipsis" aria-hidden="true"></i></button>
         <button class="mode-toggle" type="button" data-mode-toggle>Dive</button>
+        <button type="button" data-walk>Walk ashore</button>
+        <button type="button" data-cruise aria-pressed="false">Cruise assist</button>
+        <div class="action-dock__secondary" id="more-game-actions" data-action-menu>
+          <button type="button" data-camera-toggle aria-label="Change camera view" title="Change camera view"><i data-lucide="camera" aria-hidden="true"></i> View</button>
+          <button class="music-toggle" type="button" data-music-toggle>Music off</button>
+          <button type="button" data-stand>Harbor</button>
+          <button type="button" data-journal-toggle>Journal</button>
+          <button type="button" data-atlas-toggle aria-label="Open voyage atlas" title="Voyage atlas"><i data-lucide="map" aria-hidden="true"></i> Atlas</button>
+          <button type="button" data-save title="Save progress"><i data-lucide="save" aria-hidden="true"></i> Save</button>
+        </div>
       </div>
+      <section class="island-tools" aria-label="Island exploration">
+        <label for="island-destination">Island destinations</label>
+        <select id="island-destination" data-land-destination>
+          <option value="research">Research exchange</option><option value="outfitter">Dive outfitter</option><option value="lookout">Island trail</option><option value="boat">Boarding gate</option>
+        </select>
+        <div class="island-tools__action"><span data-land-prompt>Explore the harbor</span><button type="button" data-land-interact>Visit counter · F</button></div>
+        <button type="button" data-hold="ShiftLeft" aria-label="Hold to jog">Jog · hold</button>
+      </section>
+      <section class="dive-tools" aria-label="Dive tools">
+        <div class="dive-tools__tabs">
+          <button type="button" data-tool="camera" aria-pressed="true">Camera</button>
+          <button type="button" data-tool="sampler" aria-pressed="false">Sampler</button>
+          <button type="button" data-tool="cutter" aria-pressed="false">Cutter</button>
+          <button type="button" data-tool="scanner" aria-pressed="false">Scanner</button>
+        </div>
+        <div class="dive-tools__action"><span data-tool-prompt>Frame a species to photograph</span><div class="dive-tools__commands"><button type="button" data-sonar-pulse title="Pulse sonar" aria-label="Pulse sonar" hidden><i data-lucide="radar" aria-hidden="true"></i></button><button type="button" data-interact>Use tool · F</button></div></div>
+        <progress data-reading-progress max="2.5" value="0" aria-label="Acoustic reading progress" hidden></progress>
+        <div class="dive-tools__equipment" data-dive-equipment hidden>
+          <button type="button" data-scooter-toggle aria-pressed="false" title="Switch dive drive on or off"><i data-lucide="power" aria-hidden="true"></i><span>Dive drive</span></button>
+          <meter data-scooter-charge min="0" max="100" value="100" aria-label="Dive drive battery"></meter><span data-scooter-status>100%</span>
+        </div>
+        <section class="sonar-contacts" data-sonar-contacts hidden aria-label="Sonar identification">
+          <header><span><i data-lucide="radar" aria-hidden="true"></i><span data-scan-status>Scanning</span></span><small data-scan-count>0 contacts</small><button type="button" data-scan-auto aria-pressed="true" title="Toggle automatic scanning" aria-label="Automatic scanning"><i data-lucide="power" aria-hidden="true"></i></button></header>
+          <select data-scan-target aria-label="Identified contact"></select>
+          <div data-scan-detail hidden>
+            <small data-scan-kind></small>
+            <dl><div><dt>Range</dt><dd data-scan-range></dd></div><div><dt>Depth</dt><dd data-scan-depth></dd></div><div><dt>Bearing</dt><dd data-scan-bearing></dd></div></dl>
+            <p data-scan-note></p><p class="sonar-contacts__action" data-scan-action></p>
+          </div>
+          <p data-scan-empty hidden>No contacts. Research range 65 m / wildlife range 25 m.</p>
+        </section>
+      </section>
+      <div class="dive-reticle" aria-hidden="true"><span></span></div>
+      <div class="navigation-guide" data-navigation-guide><span data-nav-bearing>Research harbor</span><small data-nav-help>W/S throttle · A/D steer · E dive · C camera · J journal</small></div>
+      <section class="journal" data-journal aria-labelledby="journal-title" aria-hidden="true">
+        <div class="journal__panel"><header><div><span class="hud__eyebrow">Ocean Adventure</span><h2 id="journal-title">Field journal</h2></div><button type="button" data-journal-close aria-label="Close journal">Close</button></header><div data-journal-content></div></div>
+      </section>
       <section class="pause-menu" data-pause-menu aria-labelledby="pause-title" aria-hidden="true">
         <div class="pause-menu__panel">
-          <span class="hud__eyebrow">Aurora systems</span>
+          <span class="hud__eyebrow" data-vessel-systems>Aurora systems</span>
           <h2 id="pause-title">Voyage Paused</h2>
           <div class="pause-menu__setting">
             <span>Graphics</span>
@@ -60,6 +108,11 @@
             </div>
           </div>
           <button class="pause-menu__resume" type="button" data-resume>Resume voyage</button>
+          <button type="button" data-inventory-toggle>Expedition inventory</button>
+          <button type="button" data-atlas-toggle>Voyage atlas</button>
+          <p class="controls-help">Helm: W/S forward, brake and reverse · A/D steer · Shift boost<br>Dive: W/S swim · A/D turn · Q/Z strafe · Space rise · Ctrl descend<br>Drag the scene to look · C switches dive view · F uses a tool · J journal<br>Controller: stick steers · triggers move · bumpers change depth · Y uses tool</p>
+          <p class="controls-help">Island: Walk ashore at the mooring · WASD walk · Arrows move / turn · Drag to look · Shift run · F visit counter · E board at the gate · C view<br>Controller ashore: left stick walks · right stick looks · A boards · Y interacts</p>
+          <button type="button" data-rescue>Free recovery aboard</button>
         </div>
       </section>
       <div class="notice" data-notice>Aurora systems ready.</div>
@@ -67,16 +120,21 @@
         <div class="harbor__panel">
           <header class="harbor__header">
             <div>
-              <span class="hud__eyebrow">Mara's expedition office</span>
-              <h2 id="harbor-title"><span data-contract-title>Bluewater Survey</span> Complete</h2>
+              <span class="hud__eyebrow">Dockside research exchange</span>
+              <h2 id="harbor-title"><span data-contract-title>Bluewater Research</span></h2>
             </div>
             <div class="harbor__balance"><b data-harbor-credits>0</b><span>Credits</span></div>
           </header>
           <div class="harbor__reward">
-            <span>Expedition reward</span>
+            <span>Research cargo value</span>
             <strong>+<b data-reward>0</b> credits</strong>
-            <p>All five navigation signals were recovered and logged.</p>
-            <button type="button" data-reward-ad hidden>Double reward</button>
+            <p>Turn in your survey, samples and recovered sensor to earn expedition credits.</p>
+            <div data-ledger></div>
+            <button type="button" data-cash-in>Sell research cargo</button>
+            <div class="research-grant" data-grant-panel>
+              <div><strong>Research grant</strong><span data-grant-status>Sell cargo to unlock a grant.</span></div>
+              <button type="button" data-reward-ad hidden>Check grant availability</button>
+            </div>
           </div>
           <section class="fleet">
             <div class="fleet__heading"><span>Fleet</span><strong>Select an expedition vessel</strong></div>
@@ -89,7 +147,8 @@
           <div class="harbor__upgrades" data-upgrade-list></div>
           <footer class="harbor__footer">
             <span data-expeditions>0 expeditions completed</span>
-            <button type="button" data-next-expedition>Launch next expedition</button>
+            <button type="button" data-contracts-toggle><i data-lucide="compass" aria-hidden="true"></i> Contracts</button>
+            <button type="button" data-next-expedition>Begin expedition</button>
           </footer>
         </div>
       </section>
@@ -103,6 +162,13 @@
         <button class="swim-control swim-control--dive" type="button" data-hold="ControlLeft">DIVE</button>
       </div>
     </main>
+    <dialog class="grant-offer" data-grant-offer aria-labelledby="grant-offer-title">
+      <span class="hud__eyebrow">Research grant</span>
+      <h2 id="grant-offer-title">A little more for your next voyage</h2>
+      <strong data-grant-offer-amount>+0 credits</strong>
+      <p>Watch an ad to receive this optional research grant.</p>
+      <div><button type="button" data-grant-watch>Watch ad</button><button type="button" data-grant-decline>No thanks</button></div>
+    </dialog>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

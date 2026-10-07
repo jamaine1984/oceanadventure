@@ -2,6 +2,8 @@
 
 This project is ready for Cloudflare Pages as its own app.
 
+October 7, 2026 account check: `wrangler pages project list` did not contain `ocean-adventure-game`. The configuration below is an intended standalone target, not evidence of a live deployment. Do not deploy this game over any other listed project. Current publishing uses `jamaine1984/oceanadventure`; local development continues with `npm run dev`.
+
 ## Recommended Setup
 
 Use GitHub as the source of truth, then connect the GitHub repo to Cloudflare Pages.

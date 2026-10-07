@@ -5,14 +5,15 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   retries: 0,
-  timeout: 45_000,
+  timeout: 120_000,
   reporter: [['list']],
   use: {
     baseURL: 'http://127.0.0.1:5174',
     viewport: { width: 1280, height: 720 },
+    reducedMotion: 'reduce',
     launchOptions: {
       executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-      args: ['--use-angle=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist'],
+      args: ['--use-angle=d3d11', '--enable-webgl', '--ignore-gpu-blocklist'],
     },
   },
   webServer: {

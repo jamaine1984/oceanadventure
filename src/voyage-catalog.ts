@@ -1,0 +1,52 @@
+export type DistrictKey = 'bay' | 'lagoon' | 'passage';
+export const CHART_BOUNDS={minX:-230,maxX:260,minZ:-225,maxZ:105} as const;
+export type ContractFamily = 'survey' | 'photography' | 'sampling' | 'mapping' | 'recovery';
+export type ContractSpecies = 'turtle' | 'ray' | 'tang' | 'butterflyfish' | 'anthias' | 'reefshark' | 'hammerhead';
+export type ContractDefinition = {
+  id: string; title: string; district: DistrictKey; route: 'reef' | 'lagoon' | 'passage';
+  family: ContractFamily; client: 'mara' | 'ivo' | 'selene';
+  briefing: string; debrief: string; story?: number; prerequisites: readonly string[];
+  species: readonly ContractSpecies[]; photoGoal: number; samples: boolean; readings: boolean;
+  recovery: boolean; bonus: number; reputation: number; blueprint?: 'survey-anchor' | 'scooter-drive';
+};
+export const DISTRICTS = [
+  { id: 'bay' as const, name: 'Bluewater Bay', x: 0, z: -86, radius: 60, requires: '', color: '#68cbd4', description: 'Coral shelves, the research harbor and the lost survey launch.' },
+  { id: 'lagoon' as const, name: 'Seagrass Lagoon', x: -112, z: -100, radius: 60, requires: 'bay-signal', color: '#81b98c', description: 'Turtle feeding grounds and an acoustic monitoring transect.' },
+  { id: 'passage' as const, name: 'Limestone Passage', x: 146, z: -90, radius: 60, requires: 'lagoon-echo', color: '#d2b775', description: 'An eastern coral garden and a flooded limestone vault.' },
+] as const;
+export const CLIENTS = {
+  mara: { name: 'Mara Velez', role: 'Expedition lead' },
+  ivo: { name: 'Ivo Chen', role: 'Marine systems engineer' },
+  selene: { name: 'Dr. Selene Okoro', role: 'Habitat researcher' },
+} as const;
+
+export const CONTRACTS: readonly ContractDefinition[] = [
+  { id:'bay-signal',title:'The Lost Signal',district:'bay',route:'reef',family:'survey',client:'mara',story:1,prerequisites:[],species:[],photoGoal:3,samples:true,readings:false,recovery:true,bonus:250,reputation:25,briefing:'Document the reef, then recover the survey launch\'s stranded sensor. Its final transmission points west.',debrief:'The sensor holds three matching pulses from the lagoon. Ivo believes an older monitoring network is still responding.',blueprint:'survey-anchor' },
+  { id:'bay-portrait',title:'Life on the Coral Shelf',district:'bay',route:'reef',family:'photography',client:'selene',prerequisites:[],species:['butterflyfish','tang','anthias'],photoGoal:3,samples:false,readings:false,recovery:false,bonus:180,reputation:12,briefing:'Photograph butterflyfish, blue tang and anthias in the bay. Leave the habitat undisturbed.',debrief:'Three reef species documented. These images establish our shallow-water baseline.' },
+  { id:'bay-water',title:'The Water Between',district:'bay',route:'reef',family:'sampling',client:'selene',prerequisites:[],species:[],photoGoal:0,samples:true,readings:false,recovery:false,bonus:160,reputation:10,briefing:'Collect the bay\'s marked water and sediment samples for the habitat laboratory.',debrief:'Both samples arrived sealed. The bay baseline is ready for comparison with the lagoon.' },
+  { id:'bay-recovery',title:'Second Life for a Sensor',district:'bay',route:'reef',family:'recovery',client:'ivo',prerequisites:['bay-signal'],species:[],photoGoal:0,samples:false,readings:false,recovery:true,bonus:230,reputation:15,briefing:'Return to the lost launch. Release the snagged cable and recover its replacement field sensor.',debrief:'A complete field sensor recovered. Ivo has logged the repairable components.' },
+  { id:'bay-patrol',title:'The Outer Reef Watch',district:'bay',route:'reef',family:'photography',client:'mara',prerequisites:['bay-signal'],species:['turtle','ray','reefshark'],photoGoal:3,samples:false,readings:false,recovery:false,bonus:240,reputation:15,briefing:'Record the turtle, eagle ray and blacktip patrol in open water around the reef.',debrief:'Outer-reef observations received. Larger wildlife is using the channel again.' },
+  { id:'lagoon-echo',title:'Echoes in the Seagrass',district:'lagoon',route:'lagoon',family:'survey',client:'ivo',story:2,prerequisites:['bay-signal'],species:['turtle','ray'],photoGoal:2,samples:true,readings:true,recovery:false,bonus:350,reputation:30,briefing:'Survey the lagoon and acquire all three acoustic stations. Compare their pulses with the lost launch recording.',debrief:'The third station resolves a bearing toward the eastern limestone vault. A submerged transmitter is answering.',blueprint:'scooter-drive' },
+  { id:'lagoon-portraits',title:'Gentle Giants',district:'lagoon',route:'lagoon',family:'photography',client:'selene',prerequisites:['bay-signal'],species:['turtle','ray'],photoGoal:2,samples:false,readings:false,recovery:false,bonus:200,reputation:12,briefing:'Photograph a feeding turtle and an eagle ray in their lagoon habitat.',debrief:'Two lagoon residents documented without disturbing their route.' },
+  { id:'lagoon-baseline',title:'Roots and Water',district:'lagoon',route:'lagoon',family:'sampling',client:'selene',prerequisites:['bay-signal'],species:[],photoGoal:0,samples:true,readings:false,recovery:false,bonus:190,reputation:10,briefing:'Collect the two marked lagoon samples to compare against the coral-shelf baseline.',debrief:'The seagrass samples are safely archived.' },
+  { id:'lagoon-listen',title:'Listen to the Channel',district:'lagoon',route:'lagoon',family:'mapping',client:'ivo',prerequisites:['bay-signal'],species:[],photoGoal:0,samples:false,readings:true,recovery:false,bonus:220,reputation:14,briefing:'Acquire stable readings at the lagoon edge, sand channel and outer bank.',debrief:'All three channels are mapped. The network has a reliable acoustic reference.' },
+  { id:'lagoon-repeat',title:'A Living Coast',district:'lagoon',route:'lagoon',family:'survey',client:'selene',prerequisites:['lagoon-echo'],species:['turtle','ray'],photoGoal:2,samples:true,readings:false,recovery:false,bonus:240,reputation:14,briefing:'Repeat the lagoon wildlife and sample survey to establish a second habitat record.',debrief:'The second habitat record is complete. Selene can compare the survey results.' },
+  { id:'passage-origin',title:'The Origin of the Pulse',district:'passage',route:'passage',family:'survey',client:'mara',story:3,prerequisites:['lagoon-echo'],species:['turtle','tang'],photoGoal:2,samples:true,readings:true,recovery:false,bonus:400,reputation:40,briefing:'Survey the eastern garden, then follow the limestone stations south to north. Resolve the transmitter\'s source.',debrief:'The signal belongs to a dormant habitat-monitoring array, not a distress beacon. Your surveys have restored its reference network. The bay\'s first campaign is complete.' },
+  { id:'passage-colors',title:'Garden in Blue',district:'passage',route:'passage',family:'photography',client:'selene',prerequisites:['lagoon-echo'],species:['turtle','tang'],photoGoal:2,samples:false,readings:false,recovery:false,bonus:220,reputation:12,briefing:'Photograph the turtle and blue tang that live around the eastern coral garden.',debrief:'The garden residents are recorded in the habitat archive.' },
+  { id:'passage-samples',title:'Beneath the Ledges',district:'passage',route:'passage',family:'sampling',client:'selene',prerequisites:['lagoon-echo'],species:[],photoGoal:0,samples:true,readings:false,recovery:false,bonus:210,reputation:10,briefing:'Seal the two marked eastern samples before returning to the research exchange.',debrief:'The eastern substrate and water samples are ready for the laboratory.' },
+  { id:'passage-traverse',title:'Through the Vault',district:'passage',route:'passage',family:'mapping',client:'ivo',prerequisites:['lagoon-echo'],species:[],photoGoal:0,samples:false,readings:true,recovery:false,bonus:280,reputation:18,briefing:'Traverse the flooded vault and acquire its entrance, interior and north-exit readings in order.',debrief:'The complete passage transect is recorded. Both entrances remain navigable.' },
+  { id:'passage-watch',title:'Beyond the Last Reading',district:'passage',route:'passage',family:'survey',client:'mara',prerequisites:['passage-origin'],species:['turtle','tang'],photoGoal:2,samples:true,readings:true,recovery:false,bonus:450,reputation:20,briefing:'Complete a follow-up garden and vault expedition with the restored monitoring network.',debrief:'A complete follow-up record is archived. The restored array is still responding.' },
+];
+export function contractById(id: unknown) { return typeof id === 'string' ? CONTRACTS.find(contract => contract.id === id) : undefined; }
+export function contractAvailable(contract: ContractDefinition, completed: readonly string[]) { return contract.prerequisites.every(id => completed.includes(id)); }
+export function districtUnlocked(id: DistrictKey, completed: readonly string[]) { const district=DISTRICTS.find(item=>item.id===id);return !!district&&(!district.requires||completed.includes(district.requires)); }
+export function nextStoryContract(completed: readonly string[]) { return CONTRACTS.find(contract=>contract.story&&!completed.includes(contract.id)&&contractAvailable(contract,completed)); }
+export const LANDMARKS = [
+  { id:'harbor',name:'Research harbor',district:'bay' as const,x:0,z:28,radius:35 },
+  { id:'reef',name:'Coral shelf',district:'bay' as const,x:0,z:-86,radius:40 },
+  { id:'wreck',name:'Lost survey launch',district:'bay' as const,x:94,z:-168,radius:40 },
+  { id:'lagoon',name:'Turtle feeding grounds',district:'lagoon' as const,x:-112,z:-100,radius:40 },
+  { id:'transect',name:'Acoustic outer bank',district:'lagoon' as const,x:-158,z:-160,radius:35 },
+  { id:'garden',name:'Eastern coral garden',district:'passage' as const,x:146,z:-90,radius:35 },
+  { id:'vault',name:'Limestone vault',district:'passage' as const,x:166,z:-140,radius:30 },
+] as const;
