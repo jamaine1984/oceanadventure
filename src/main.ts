@@ -7,13 +7,14 @@ import { Sky } from 'three/examples/jsm/objects/Sky.js';
 import { Water } from 'three/examples/jsm/objects/Water.js';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { WEATHER_PRESETS, cloneSeaState, dampSeaState, type WeatherKey } from './sea-config';
+import {newVoyageWeather,advanceWeather,activeWeather,holdWeather,restWeather,voyageLight,weatherForecast} from './voyage-weather';
 import { ACHIEVEMENT_CATALOG, BOAT_CATALOG, UPGRADE_CATALOG, acquireProgressWriter, defaultProgress, loadProgress, saveProgress, setProgressStorage, upgradeCost, researchDiscount, importProgress, progressLoadStatus, ProgressLoadError, readProgressImport, type AchievementKey, type BoatKey, type UpgradeKey } from './progression';
 import { platform } from './platform';
 import { Inventory } from './inventory';
 import { researchGrantAmount, claimResearchGrant } from './research-grant';
 import { photographCrop } from './photo-framing';
 import { capturePhotograph } from './photo-capture';
-import { createIcons, Package, Ellipsis, Pause, Camera, Save, Map as MapIcon, Compass, Power, Radar, Radio } from 'lucide';
+import { createIcons, Package, Ellipsis, Pause, Camera, Save, Map as MapIcon, Compass, Power, Radar, Radio, CloudSun, X } from 'lucide';
 import { SCOOTER, newFieldEquipment, fabricateScooter, scooterStep, SONAR_COOLDOWN, SONAR_DURATION } from './field-equipment';
 import { identifyScan, scannerReady, type ScanIdentification } from './scan-identification';
 import { ScannerPanel } from './scanner-panel';
@@ -27,7 +28,7 @@ import { commissionArray } from './array-repair';
 import { WreckwardWorld } from './wreckward-world';
 import { PelagicWorld } from './pelagic-world';
 import {SalvageWorld} from './salvage-world';
-import {FIELD_POSTS,SALVAGE_CACHES,MATERIALS,RECIPES,cacheAvailable,salvageReady,recoverSalvage,fabricateMaterials,podAnchorage,deployPod,packPod,podServiceReady,podApproach,servicePod,type MaterialRecipe} from './salvage';
+import {newSalvage,FIELD_POSTS,SALVAGE_CACHES,MATERIALS,RECIPES,cacheAvailable,salvageReady,recoverSalvage,fabricateMaterials,podAnchorage,deployPod,packPod,podServiceReady,podApproach,servicePod,type MaterialRecipe} from './salvage';
 import { PELAGIC_SITE, PELAGIC_PORTS, pelagicTarget, pelagicApproach, pelagicReady, recordPelagicPort } from './pelagic';
 import {RovWorld} from './rov-world';
 import {RESEARCH_ROV,newRovEquipment,fabricateRov,rovBatteryStep,constrainRovTether,rovDepthBounds} from './research-rov';
@@ -90,6 +91,10 @@ const depthText = document.querySelector<HTMLElement>('[data-depth]');
 const airText = document.querySelector<HTMLElement>('[data-air]');
 const airStatus = document.querySelector<HTMLElement>('.air-status');
 const weatherButtons = document.querySelectorAll<HTMLButtonElement>('[data-weather]');
+const forecastDialog=document.querySelector<HTMLDialogElement>('[data-forecast]')!;
+const forecastClock=document.querySelector<HTMLElement>('[data-voyage-clock]')!;
+let forecastSignature='';
+let daylight=1;
 const creditsText = document.querySelector<HTMLElement>('[data-credits]');
 const harbor = document.querySelector<HTMLElement>('[data-harbor]');
 const harborCredits = document.querySelector<HTMLElement>('[data-harbor-credits]');
@@ -621,7 +626,7 @@ async function initialize() {
     acceptVoyageContract,next=>{try{saveProgress(next);Object.assign(progress,next);cancelSwimAssist();updateHud();return true;}catch{return false;}},
     next=>{try{importProgress(next);replacingVoyage=true;location.reload();return true;}catch{return false;}},
     open=>{clearPlayerInput();resetFrameClock();if(open)platform.gameplayStop();else resumePlatformIfPlaying();});
-  createIcons({ icons: { Package, Ellipsis, Pause, Camera, Save, Map:MapIcon, Compass, Power, Radar, Radio } }); createInput();
+  createIcons({ icons: { Package, Ellipsis, Pause, Camera, Save, Map:MapIcon, Compass, Power, Radar, Radio, CloudSun, X } }); createInput();
   researchPartners=new ResearchPartners(scene,expeditionWorld.walking.height.bind(expeditionWorld.walking));
   storyDialog=new StoryDialog(()=>progress,finishConversation,open=>{clearPlayerInput();resetFrameClock();if(open)platform.gameplayStop();else resumePlatformIfPlaying();});
   arrayService=new ArrayService(scene,expeditionFloor(190,-156),finishArrayRepair,open=>{clearPlayerInput();resetFrameClock();if(open)platform.gameplayStop();else resumePlatformIfPlaying();});
@@ -632,7 +637,8 @@ async function initialize() {
   researchRov=new RovWorld(scene,physicsWorld);
   diveSonar=new DiveSonar(scene);
   if(progress.fieldEquipment?.scooter)void ensureDiveDrive().catch(()=>setNotice('Dive drive model unavailable. Your equipment is saved; toggle the drive to retry.'));
-  selectWeather('bluewater', false);
+  progress.weather??=newVoyageWeather();progress.rov??=newRovEquipment();progress.salvage??=newSalvage();progress.saveVersion=5;
+  selectWeather(activeWeather(progress.weather), false);
   restoreExpeditionCheckpoint();
   if (qaMode === 'reef' || qaMode === 'dive' || qaMode === 'wreck' || qaMode === 'return') {
     if(!previewHadSave){
@@ -806,6 +812,8 @@ async function createOceanAndSky() {
   scene.add(underwaterSurface);
 
   sky = new Sky();
+  sky.material.uniforms.uNightAmbient={value:0};
+  sky.material.fragmentShader=`uniform float uNightAmbient;\n${sky.material.fragmentShader}`.replace('gl_FragColor = vec4( texColor, 1.0 );','gl_FragColor = vec4( texColor + vec3(0.006, 0.012, 0.026) * uNightAmbient, 1.0 );');
   sky.name = 'physical_sky';
   sky.scale.setScalar(10000);
   scene.add(sky);
@@ -873,7 +881,7 @@ function createProceduralNormalTexture() {
 }
 
 let skyEnvironmentKey='';
-function setSun(elevation: number, azimuth: number) {
+function setSun(elevation: number, azimuth: number, refreshEnvironment=true) {
   const phi = THREE.MathUtils.degToRad(90 - elevation);
   const theta = THREE.MathUtils.degToRad(azimuth);
   sun.setFromSphericalCoords(1, phi, theta);
@@ -881,6 +889,7 @@ function setSun(elevation: number, azimuth: number) {
   water.material.uniforms.sunDirection.value.copy(sun).normalize();
   sunGlow.position.copy(sun).multiplyScalar(620);
   sunLight.position.copy(sun).multiplyScalar(500);
+  if(!refreshEnvironment)return;
 
   const uniforms=sky.material.uniforms;
   const environmentKey=JSON.stringify([elevation,azimuth,uniforms.turbidity.value,uniforms.rayleigh.value,uniforms.mieCoefficient.value,uniforms.mieDirectionalG.value]);
@@ -1716,7 +1725,7 @@ function tick() {
     rovBattery:progress.rov?.battery,rovLoaded:researchRov.loaded,rovChase,rovLights,rovVisible:researchRov.root.visible,rovCableVisible:researchRov.tether.visible,rovLightIntensity:researchRov.lamp.intensity,rovTether:playerMode==='rov'?researchRov.root.position.distanceTo(rovAnchor):undefined,
     observatoryLoaded:observatory.loaded,observatoryFloor:observatory.floor,observatoryRecords:progress.expedition.observatoryRecords,observatoryReading:observatoryReading?.seconds,
     fieldLoaded:salvageWorld.loaded,fieldTarget:fieldTargetId,fieldReading:fieldReading?.seconds,salvage:progress.salvage,
-    fieldPlacementChecks,
+    fieldPlacementChecks,weather:progress.weather,daylight,weatherKey,
     walkFacing: playerMode==='walk'?-walker.root.rotation.y:undefined, walkSpeed: playerMode==='walk'?walkSpeed:undefined,
     characterSource: playerMode==='walk'?walker.source:swimmerCharacter.source, diveInspectionView, diveOrbitYaw,
     diverNdc:playerMode==='swim'&&!firstPersonDive?swimmer.position.clone().project(camera).toArray():undefined,
@@ -2413,7 +2422,7 @@ async function launchNextExpedition() {
     finally { adBusy = false; }
   }
   expeditionComplete = false; rewardGranted = false; rewardDoubled = false;
-  closeResearchStand(); selectWeather('bluewater', false);
+  closeResearchStand();
   const plan=expeditionPlan(progress.expedition);
   setNotice(progress.expedition.stage==='reef'?`${plan.title}: sail to ${plan.habitat.toLowerCase()}. Photograph ${plan.photoGoal} species and collect both samples.`:progress.expedition.stage==='transect'?`Sail to ${plan.recoveryTitle.toLowerCase()}. Record the three stations with Scanner.`:progress.expedition.stage==='wreck'?'Sail to the wreck buoy. Release the cable and recover the research sensor.':'Return to the research harbor to sell your cargo.');
   updateHud();
@@ -2715,6 +2724,10 @@ function updateWake(delta: number) {
 }
 
 function updateWeather(delta: number) {
+  const clock=progress.weather!;
+  advanceWeather(clock,delta);
+  const scheduled=activeWeather(clock);
+  if(scheduled!==weatherKey){selectWeather(scheduled,false);setNotice(`${WEATHER_PRESETS[scheduled].label} front arriving. ${scheduled==='storm'?'Rough seas: reduce throttle or shelter at harbor.':'Marine forecast updated.'}`);}
   dampSeaState(currentSea, targetSea, delta);
   const colorBlend = 1 - Math.exp(-1.8 * delta);
   currentWaterColor.lerp(tmpColor.set(targetSea.waterColor), colorBlend);
@@ -2751,9 +2764,19 @@ function updateWeather(delta: number) {
 
   cloudMaterial.color.copy(currentCloudColor);
   cloudMaterial.opacity = currentSea.cloudOpacity;
-  sunGlow.material.opacity = 0.9 * (1 - currentSea.rain * 0.92);
-  hemisphereLight.intensity = 0.50 - currentSea.rain * 0.18;
-  sunLight.intensity = 3.0 - currentSea.rain * 1.85;
+  const light=voyageLight(clock.elapsed);daylight=light.daylight;
+  setSun(light.elevation,light.azimuth,false);
+  // The night key light follows the moon; sky and surface sunlight remain astronomical.
+  if(daylight<.1){sun.multiplyScalar(-1);sunGlow.position.copy(sun).multiplyScalar(620);water.material.uniforms.sunDirection.value.copy(sun);}
+  sunGlow.material.color.set(daylight<.1?0xcddfff:0xffefd0);
+  skyUniforms.uNightAmbient.value=1-daylight;
+  sunGlow.material.opacity = (daylight<.1?.65*(1-daylight/.1):.9*daylight) * (1 - currentSea.rain * 0.92);
+  water.material.uniforms.sunColor.value.set(daylight<.1?0x283b50:0xffffff);
+  hemisphereLight.intensity = (0.30+daylight*.20) * (1-currentSea.rain*.24);
+  sunLight.intensity = (daylight<.1?.42:3*daylight) * (1-currentSea.rain*.62);
+  sunLight.color.set(daylight<.1?0xabcaff:light.elevation<14?0xffc487:0xfff2ce);
+  scene.environmentIntensity=.06+daylight*.12;
+  renderForecast();
 
   if (currentSea.rain > 0.72 && gameTime >= nextLightningAt) {
     lightningFlash = 1;
@@ -2770,7 +2793,7 @@ function updateUnderwaterWorld(delta: number) {
     causticMaterial.uniforms.uTime.value = gameTime;
     causticMaterial.uniforms.uOpacity.value = THREE.MathUtils.damp(
       causticMaterial.uniforms.uOpacity.value,
-      cameraUnderwater ? 0.12 : 0,
+      cameraUnderwater ? 0.12*daylight : 0,
       4,
       delta,
     );
@@ -2873,30 +2896,54 @@ function updateEnvironment() {
   const fog = scene.fog as THREE.FogExp2;
   if (cameraUnderwater) {
     const depth = Math.max(0, surfaceAtCamera - camera.position.y);
-    fog.color.set(0x167b92);
+    underwaterBackground.set(0x167b92).lerp(tmpColor.set(0x0a283b),1-daylight);
+    fog.color.copy(underwaterBackground);
     fog.density = THREE.MathUtils.lerp(0.008, 0.013, Math.min(depth / 70, 1));
-    underwaterLight.intensity = 9;
+    underwaterLight.intensity = 5+daylight*4;
     renderer.toneMappingExposure = 0.95;
   } else {
-    fog.color.copy(currentFogColor);
+    fog.color.copy(currentFogColor).lerp(tmpColor.set(0x101e2c),1-daylight);
     fog.density = currentSea.fogDensity;
     underwaterLight.intensity = 0;
-    renderer.toneMappingExposure = currentSea.exposure + lightningFlash * 0.34;
+    renderer.toneMappingExposure = currentSea.exposure + (1-daylight)*.22 + lightningFlash * 0.34;
   }
   music?.setEnvironment(cameraUnderwater, currentSea.rain);
 }
 
 function selectWeather(key: WeatherKey, announce = true) {
+  if(announce){
+    const next=structuredClone(progress);next.weather=holdWeather(progress.weather!,key);
+    try{saveProgress(next);}catch{document.querySelector<HTMLElement>('[data-forecast-feedback]')!.textContent='Weather setting could not be saved. Your forecast is unchanged.';setNotice('Weather setting could not be saved. Your forecast is unchanged.');return;}
+    Object.assign(progress,next);
+  }
   weatherKey = key;
   targetSea = cloneSeaState(WEATHER_PRESETS[key]);
   gameRoot.dataset.weatherMode = key;
   weatherButtons.forEach((button) => {
     button.setAttribute('aria-pressed', String(button.dataset.weather === key));
   });
-  setSun(targetSea.sunElevation, targetSea.sunAzimuth);
   if (announce) {
-    setNotice(`${WEATHER_PRESETS[key].label} sea selected. Wind ${targetSea.windKnots} knots.`);
+    setNotice(`${WEATHER_PRESETS[key].label} sea selected for three sailing minutes. Wind ${targetSea.windKnots} knots.`);
   }
+  renderForecast();
+  document.querySelector<HTMLElement>('[data-forecast-feedback]')!.textContent='';
+}
+
+function renderForecast() {
+  if(!progress.weather)return;
+  const light=voyageLight(progress.weather.elapsed),forecast=weatherForecast(progress.weather);
+  const canRest=(playerMode==='helm'?boatAtLanding():playerMode==='walk'&&canVisitStand())&&(light.hour<7||light.hour>=17);
+  const restButton=document.querySelector<HTMLButtonElement>('[data-weather-rest]')!;restButton.disabled=!canRest;restButton.title=canRest?'Rest until 07:00; equipment and cargo remain unchanged':'Moor at harbor at dusk or night to rest';
+  const signature=JSON.stringify([light.clock,light.period,forecast.key,forecast.manual,Math.ceil(forecast.remaining/60)]);
+  if(signature===forecastSignature)return;forecastSignature=signature;
+  forecastClock.textContent=`${light.clock} ${light.period}`;
+  forecastClock.title=`${WEATHER_PRESETS[forecast.key].label}; next change in ${Math.ceil(forecast.remaining/60)} sailing min`;
+  document.querySelector<HTMLElement>('[data-forecast-now]')!.textContent=`${light.clock} ${light.period} / ${WEATHER_PRESETS[forecast.key].label} / ${WEATHER_PRESETS[forecast.key].windKnots} kt wind`;
+  document.querySelector<HTMLElement>('[data-forecast-advice]')!.textContent=forecast.key==='storm'?'Rough seas. Reduce throttle; hull upgrades reduce speed loss. Harbor remains available.':light.period==='Night'?'Night passage. Follow chart waypoints and keep your dive light equipped.':'Open-water conditions. Check the next front before a long dive.';
+  const list=document.querySelector<HTMLOListElement>('[data-forecast-fronts]')!;list.replaceChildren();
+  for(const front of forecast.entries){const li=document.createElement('li');li.textContent=`${WEATHER_PRESETS[front.key].label} in ${Math.ceil(front.inSeconds/60)} sailing min / ${WEATHER_PRESETS[front.key].windKnots} kt`;list.append(li);}
+  document.querySelector('[data-weather-auto]')!.setAttribute('aria-pressed',String(!forecast.manual));
+  weatherButtons.forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.weather===forecast.key)));
 }
 
 function updateWind(delta: number) {
@@ -3129,6 +3176,15 @@ function formatHeading(value: number) {
 }
 
 function createInput() {
+  document.querySelector('[data-forecast-toggle]')!.addEventListener('click',()=>{if(menusOpen())return;renderForecast();clearPlayerInput();forecastDialog.showModal();resetFrameClock();platform.gameplayStop();});
+  document.querySelector('[data-forecast-close]')!.addEventListener('click',()=>forecastDialog.close());
+  forecastDialog.addEventListener('close',()=>{clearPlayerInput();resetFrameClock();resumePlatformIfPlaying();const more=document.querySelector<HTMLButtonElement>('[data-action-menu-toggle]')!;const trigger=document.querySelector<HTMLButtonElement>('[data-forecast-toggle]')!;(more.getClientRects().length?more:trigger).focus();});
+  document.querySelector('[data-weather-auto]')!.addEventListener('click',()=>{const next=structuredClone(progress);next.weather=holdWeather(progress.weather!,null);try{saveProgress(next);}catch{document.querySelector<HTMLElement>('[data-forecast-feedback]')!.textContent='Weather setting could not be saved. Your forecast is unchanged.';setNotice('Weather setting could not be saved. Your forecast is unchanged.');return;}Object.assign(progress,next);selectWeather(activeWeather(progress.weather!),false);});
+  document.querySelector('[data-weather-rest]')!.addEventListener('click',()=>{
+    const next=structuredClone(progress),feedback=document.querySelector<HTMLElement>('[data-forecast-feedback]')!;
+    try{next.weather=restWeather(progress.weather!,playerMode==='helm'?boatAtLanding():playerMode==='walk'&&canVisitStand());saveProgress(next);}catch{feedback.textContent='Rest could not be saved. Moor at harbor and allow storage before retrying.';return;}
+    Object.assign(progress,next);selectWeather(activeWeather(progress.weather!),false);updateWeather(0);updateEnvironment();renderer.render(scene,camera);feedback.textContent='07:00. Cargo and equipment remain unchanged.';
+  });
   const actionMenu=document.querySelector<HTMLElement>('[data-action-menu]')!;
   const actionToggle=document.querySelector<HTMLButtonElement>('[data-action-menu-toggle]')!;
   const compactActions=matchMedia('(max-width:760px) and (min-height:521px), (max-width:1024px) and (max-height:520px)');
@@ -3143,6 +3199,7 @@ function createInput() {
   actionMenu.addEventListener('click',event=>{if((event.target as Element).closest('button'))setActionMenu(false);});
   document.addEventListener('pointerdown',event=>{if(!(event.target as Element).closest('.action-dock'))setActionMenu(false);});
   window.addEventListener('keydown', (event) => {
+    if(forecastDialog.open){if(event.code==='Escape'){event.preventDefault();forecastDialog.close();}return;}
     if(arrayService?.open){if(event.code==='Escape'){event.preventDefault();arrayService.close();}return;}
     if(storyDialog?.open){if(event.code==='Escape'){event.preventDefault();storyDialog.close();}return;}
     if (adBusy || inventory?.open || voyageAtlas?.open) return;
@@ -3300,7 +3357,7 @@ function clearPlayerInput() {
   pointerLook = undefined; gamepadThrottle = 0; gamepadSteer = 0; gamepadBoost = false;
 }
 
-function menusOpen() { return adBusy || boatSwitching || inventory?.open || voyageAtlas?.open || storyDialog?.open || arrayService?.open || isPaused || harbor?.classList.contains('is-open') || journalPanel?.classList.contains('is-open'); }
+function menusOpen() { return forecastDialog.open || adBusy || boatSwitching || inventory?.open || voyageAtlas?.open || storyDialog?.open || arrayService?.open || isPaused || harbor?.classList.contains('is-open') || journalPanel?.classList.contains('is-open'); }
 function openVoyageAtlas(view:'chart'|'contracts') {if(adBusy||boatSwitching||inventory?.open)return;closeResearchStand();toggleJournal(false);togglePause(false);voyageAtlas.show(view);}
 function resumePlatformIfPlaying() { if (!menusOpen()) platform.gameplayStart(); }
 

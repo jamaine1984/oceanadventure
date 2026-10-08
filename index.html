@@ -30,6 +30,7 @@
           <span data-swim-stat>Depth <b data-depth>0.0</b> m</span>
           <span class="air-status" data-swim-stat>Air <b data-air>100</b>%</span>
           <span><b data-fps>60</b> fps</span>
+          <span data-voyage-clock>09:00</span>
           <span><b data-progress>0</b>/<b data-objective-total>8</b> objectives</span>
           <span class="credits"><b data-credits>0</b> credits</span>
         </div>
@@ -56,6 +57,7 @@
           <button type="button" data-journal-toggle>Journal</button>
           <button type="button" data-story-toggle title="Expedition radio"><i data-lucide="radio" aria-hidden="true"></i>Radio</button>
           <button type="button" data-atlas-toggle aria-label="Open voyage atlas" title="Voyage atlas"><i data-lucide="map" aria-hidden="true"></i> Atlas</button>
+          <button type="button" data-forecast-toggle title="Marine forecast"><i data-lucide="cloud-sun" aria-hidden="true"></i> Forecast</button>
           <button type="button" data-save title="Save progress"><i data-lucide="save" aria-hidden="true"></i> Save</button>
           <button type="button" data-rov-launch aria-label="Launch research ROV" title="Launch research ROV in open water below 1.4 knots" hidden><i data-lucide="camera" aria-hidden="true"></i><span>Launch ROV</span></button>
           <button type="button" data-pod-deploy title="Deploy or pack the survey anchor at a service mooring" hidden><i data-lucide="package" aria-hidden="true"></i><span>Deploy pod</span></button>
@@ -187,6 +189,21 @@
       <strong data-grant-offer-amount>+0 credits</strong>
       <p>Watch an ad to receive this optional research grant.</p>
       <div><button type="button" data-grant-watch>Watch ad</button><button type="button" data-grant-decline>No thanks</button></div>
+    </dialog>
+    <dialog class="marine-forecast" data-forecast aria-labelledby="marine-forecast-title">
+      <header><h2 id="marine-forecast-title">Marine forecast</h2><button type="button" data-forecast-close aria-label="Close forecast" title="Close"><i data-lucide="x" aria-hidden="true"></i></button></header>
+      <p data-forecast-now></p>
+      <p data-forecast-advice></p>
+      <ol data-forecast-fronts></ol>
+      <button type="button" data-weather-auto aria-pressed="true">Scheduled weather</button>
+      <div class="sea-state__control" aria-label="Temporary sea state">
+        <button type="button" data-weather="calm" aria-pressed="false">Calm</button>
+        <button type="button" data-weather="bluewater" aria-pressed="false">Bluewater</button>
+        <button type="button" data-weather="storm" aria-pressed="false">Storm</button>
+      </div>
+      <p class="marine-forecast__note">Sea-state overrides last three sailing minutes.</p>
+      <button type="button" data-weather-rest disabled>Rest at harbor until 07:00</button>
+      <p data-forecast-feedback role="status"></p>
     </dialog>
     <script type="module" src="/src/main.ts"></script>
   </body>

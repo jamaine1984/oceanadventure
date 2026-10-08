@@ -447,6 +447,33 @@ button:focus-visible {
   transform: translateY(-5px);
 }
 
+.marine-forecast {
+  width: min(440px, calc(100vw - 24px));
+  max-height: calc(100dvh - 24px);
+  overflow: auto;
+  box-sizing: border-box;
+  padding: 20px;
+  border: 1px solid #587480;
+  border-radius: 8px;
+  background: #10252d;
+  color: #edf6f8;
+  font-size: 14px;
+  line-height: 1.5;
+  letter-spacing: 0;
+}
+.marine-forecast::backdrop { background: rgba(0,0,0,.65); }
+.marine-forecast header { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.marine-forecast h2 { margin:0; font-size:20px; }
+.marine-forecast button { min-height:44px; border:1px solid #637c86; border-radius:4px; background:#203b46; color:#edf6f8; cursor:pointer; }
+.marine-forecast .sea-state__control button { min-height:44px; font-size:12px; }
+.marine-forecast header button { width:44px; display:grid; place-items:center; flex-shrink:0; }
+.marine-forecast [data-weather-auto] { width:100%; margin-bottom:8px; }
+.marine-forecast [data-weather-auto][aria-pressed="true"] { border-color:#e8c66c; color:#e8c66c; }
+.marine-forecast li { padding:8px 0; border-bottom:1px solid #354f59; }
+.marine-forecast__note { color:#bacdd3; font-size:12px; margin-bottom:0; }
+.marine-forecast [data-weather-rest] { width:100%; margin-top:12px; }
+.marine-forecast button:disabled { opacity:.55; cursor:default; }
+
 .credits b {
   color: #f6ca6f;
 }

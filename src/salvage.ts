@@ -26,7 +26,7 @@ export function sanitizeSalvage(value:unknown):SalvageState{
   for(const key of Object.keys(MATERIALS)as MaterialKey[]){const earned=SALVAGE_CACHES.filter(c=>c.material===key&&p.recovered.includes(c.id)).reduce((n,c)=>n+c.amount,0),spent=(p.pod.built?RECIPES.pod[key]:0)+(p.capacitor?RECIPES.capacitor[key]:0);if(p.stock[key]!==earned-spent)throw Error('The material ledger does not match its recovery receipts.');}
   return structuredClone(p);
 }
-function upgraded<P extends SalvageProgress>(p:P):P{const next=structuredClone(p);next.saveVersion=4;next.salvage=sanitizeSalvage(p.salvage);next.rov??={version:1,owned:false,battery:100};return next;}
+function upgraded<P extends SalvageProgress>(p:P):P{const next=structuredClone(p);next.saveVersion=Math.max(4,p.saveVersion??2);next.salvage=sanitizeSalvage(p.salvage);next.rov??={version:1,owned:false,battery:100};return next;}
 export function cacheAvailable(p:SalvageProgress,id:string){const c=SALVAGE_CACHES.find(c=>c.id===id);return !!c&&p.voyage.completed.includes(c.requires)&&!(p.salvage?.recovered??[]).includes(id);}
 export function salvageReady(p:SalvageProgress,id:string,position:FieldPose,floor:number,speed:number){
   const c=SALVAGE_CACHES.find(c=>c.id===id);return !!c&&cacheAvailable(p,id)&&Number.isFinite(speed)&&Math.abs(speed)<=.2&&position.y>=floor+1.2&&position.y<=floor+4.5&&Math.hypot(position.x-c.x,position.y-floor-.7,position.z-c.z)<=3.5;

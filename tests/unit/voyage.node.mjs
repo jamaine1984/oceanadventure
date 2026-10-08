@@ -48,7 +48,7 @@ test('future and unrecoverable saves block loading instead of becoming a new voy
 });
 test('recovery never silently downgrades an unsupported newest checkpoint to an older voyage',()=>{
   const {values}=storage(),older=api.defaultProgress();older.credits=100;
-  const newer={...older,saveVersion:5,credits:1800};
+  const newer={...older,saveVersion:6,credits:1800};
   values.set('ocean-adventure-recovery-v1',JSON.stringify([api.createArchive(JSON.stringify(newer)),api.createArchive(JSON.stringify(older))]));values.set('ocean-adventure-progress-v1','corrupt');
   assert.throws(()=>api.loadProgress(),api.ProgressLoadError);assert.equal(values.get('ocean-adventure-progress-v1'),'corrupt');assert.equal(JSON.parse(api.recoveryArchives()[0].payload).credits,1800);
 });

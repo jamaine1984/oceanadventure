@@ -47,6 +47,12 @@ Open `http://localhost:5174/`.
 
 ## Controls
 
+Voyage time advances only during active play: one 24-hour day lasts 36 sailing minutes. Six scheduled fronts cycle between bluewater, calm and storm. Forecast shows the next fronts, wind, local time and safety advice. Night lighting and sun-dependent underwater caustics preserve the existing water and supplied player. Reflection environment generation remains startup-only; the continuous clock changes uniforms, not a per-frame PMREM bake.
+
+Weather keys/buttons save a three-sailing-minute override; Forecast / Scheduled weather returns to the current front. Forecast pauses simulation. At dusk or night, moor at the harbor or visit its research/outfitter stand to rest until 07:00. Rest changes only voyage time/weather, not credits, cargo, oxygen or equipment charge. A failed setting/rest save leaves the voyage unchanged.
+
+Active voyage clocks use root save version 5. Update both computers before transferring saves; older builds refuse these records rather than discard weather, salvage or equipment. Legacy saves migrate with their earned progress intact, beginning the new clock at 09:00. No offline fast-forward or cloud synchronization is implied.
+
 ### Yacht
 
 - `W` / `S`: throttle and reverse
@@ -81,9 +87,9 @@ Open `http://localhost:5174/`.
 
 ### Environment
 
-- `1`: Calm sea
-- `2`: Bluewater sea
-- `3`: Storm sea
+- `1`: Calm sea override (three sailing minutes)
+- `2`: Bluewater sea override (three sailing minutes)
+- `3`: Storm sea override (three sailing minutes)
 - `M`: music on or off
 
 The on-screen Dive, weather, music, and touch controls provide the same core actions without a keyboard.

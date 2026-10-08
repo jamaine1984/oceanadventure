@@ -20,12 +20,19 @@ No feature is complete merely because it has a menu, a catalog entry or a passin
 | Distinct boats and useful deck facilities | Existing two supplied vessels retained; fleet expansion pending Blender authoring |
 | Research outposts | One Blender-authored movable Calypso pod, five registered moorings, finite service reservoirs, pack/redeploy and paid harbor resupply implemented; broader station modules pending |
 | Salvage and blueprint progression | Fifteen marked supply cases, receipt-backed materials and two material recipes implemented alongside existing blueprints; broader economy and salvage mechanics pending |
-| Consequential weather and time | Existing sea states retained; forecast, day/night and current systems pending |
+| Consequential weather and time | Saved 36-minute day/night cycle, six scheduled fronts, forecast, finite overrides and harbor rest implemented with existing wave/wind/handling effects; richer current fields, weather-specific missions and sustained profiling pending |
 | NPC relationships | Implemented three named contract clients, authored radio conversations, permitted temporary NPCs, earned reputation and capped outfitter discounts; final rigged NPCs and deeper mission chains pending |
 | Endgame expeditions | Repeatable selectable contracts implemented; multi-stop mastery expeditions pending |
 | Reliable saves and recovery | Implemented migration, rolling local recovery and validated export/import; cloud sync pending |
 | Streaming and technical release foundation | Repair cabinet and freighter load on regional approach; broader streaming and sustained performance gates pending |
 
+### October 8 Weather Delivery
+
+The inspected dusk/storm concept guides a saved 36-sailing-minute day, six smoothly changing fronts, daylight-dependent atmosphere/underwater overlay, forecast with current wind and upcoming fronts, three-minute manual overrides and harbor-only rest to 07:00. Rest grants no credits, cargo, oxygen or equipment charge. Menus stop the clock; reload has no offline jump. Root save version 5 preserves time and prevents older builds from dropping the record; salvage and ROV mutations retain the higher root version. Unknown future versions/front names block silent recovery rollback.
+
+The same sole read-only critic caught and cleared a midnight azimuth discontinuity, then found no remaining scoped P1/P2 in source or desktop captures. Emulated-touch QA independently caught a landscape rule shrinking forecast sea-state buttons to 32px; the more-specific 44px rule passes the final three-size touch replay. Visual score remains 7.6, gameplay provisional, production HOLD. Package/build and selected regressions do not replace an earned whole campaign, open-water night passage, physical devices, sustained FPS, hosted embeds or asset-rights review.
+
+Evidence: `output/playwright/weather-unit-final.log` (146 Node checks), `weather-opening.log` (actual opening, failure/retry, three portraits/four layouts), `weather-browser-release.log` (four forecast layouts, six accelerated-clock nonblank captures, setting failure/reload, night helm/dive/third-person supplied player, blocked dive rest and atomic harbor rest), and `weather-touch-final.log` (three true emulated-touch sizes). Clock values and copied opening receipts are declared fixtures, not a normally elapsed 36-minute session or an earned whole campaign. `weather-build-published.log`, `weather-package-published.log` and `weather-regression-published.log` record the final build/package/regression gates separately. The moonlit harbor is readable, but broader night lighting/art and performance still need human/device evaluation.
 ## Delivery Sequence
 
 1. Protect saves and existing routes. Add atlas, contracts, campaign receipts, reputation and recovery controls. Verify earning, pay-once, interrupted save and reload.
@@ -47,7 +54,7 @@ The October 7 approval covers all nine production recommendations, not just the 
 | Distinct mission mechanics | Surveys/recovery/transects, circuit commissioning, ordered freighter recovery and ROV terminal acquisition implemented; remote salvage pending |
 | NPC storytelling | Radio questions, saved decisions and three temporary procedural supporting NPCs; final supplied NPC GLBs and broader chains pending |
 | Earned progression | Existing boats/upgrades/blueprints/dive drive retained; material recovery, capacitor retrofit and useful Calypso pod implemented; broader economy pending |
-| Consequential environment | Existing sea states retained; schedules, currents, forecast and day/night pending |
+| Consequential environment | Saved day/night, scheduled sea-state fronts, forecast, finite overrides and harbor rest implemented; richer currents, weather-specific objectives and release profiling pending |
 | Discovery and endgame | Existing map/pins/repeat contracts retained; multi-region mastery still pending |
 | Playable opening | The Lost Signal conversation launches the real unearned mission; complete normal-play onboarding/retention still needs human assessment |
 | Full release verification | Focused automated checks underway; physical-device, sustained performance, long-campaign and hosted gates remain open |
