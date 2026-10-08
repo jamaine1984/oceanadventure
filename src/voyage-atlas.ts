@@ -57,7 +57,7 @@ export class VoyageAtlas {
       const width=chart.clientWidth,height=chart.clientHeight;if(width<44||height<44)return;
       ctx.fillStyle='#0d343e';ctx.fillRect(0,0,1000,700);ctx.lineWidth=1;ctx.strokeStyle='#244c55';
       for(let x=0;x<=1000;x+=100){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,700);ctx.stroke();}for(let y=0;y<=700;y+=100){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(1000,y);ctx.stroke();}
-      for(const district of DISTRICTS){ctx.strokeStyle=district.color;ctx.fillStyle=district.color+'18';ctx.beginPath();ctx.ellipse(sx(district.x),sz(district.z),district.radius/490*1000,district.radius/330*700,0,0,Math.PI*2);ctx.fill();ctx.stroke();}
+      for(const district of DISTRICTS){ctx.strokeStyle=district.color;ctx.fillStyle=district.color+'18';ctx.beginPath();ctx.ellipse(sx(district.x),sz(district.z),district.radius/(CHART_BOUNDS.maxX-CHART_BOUNDS.minX)*1000,district.radius/(CHART_BOUNDS.maxZ-CHART_BOUNDS.minZ)*700,0,0,Math.PI*2);ctx.fill();ctx.stroke();}
       ctx.fillStyle='#a9b798';ctx.beginPath();for(let i=0;i<=100;i++){const a=i/100*Math.PI*2,r=33+Math.sin(a*3+.6)*3.2+Math.cos(a*7)*1.5-Math.exp(-Math.pow(((a>Math.PI?a-Math.PI*2:a)+1.15)/.28,2))*6;const x=sx(-53+Math.cos(a)*r),y=sz(43+Math.sin(a)*r/.91);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);}ctx.closePath();ctx.fill();
       const target=waypointLocation(state);if(target&&inside){ctx.strokeStyle='#e4c983';ctx.lineWidth=1000/width;ctx.setLineDash([12,8]);ctx.beginPath();ctx.moveTo(sx(point.x),sz(point.z));ctx.lineTo(sx(target.x),sz(target.z));ctx.stroke();ctx.setLineDash([]);}
       const placed=layoutChartMarkers(markers.map(marker=>({id:marker.id,x:sx(marker.x)/1000*width,y:sz(marker.z)/700*height})),width,height);
@@ -83,7 +83,7 @@ export class VoyageAtlas {
       const article=element('article',undefined,'atlas__contract'),head=element('div',undefined,'atlas__contract-head');
       head.append(element('span',contract.story?`Campaign ${contract.story}/${CONTRACTS.filter(item=>item.story).length}`:contract.family),element('span',`${CLIENTS[contract.client].name} / +${contractReputationReward(contract,state.completed)} reputation`));
       article.append(head,element('h3',contract.title),element('p',contract.briefing));
-      const objectives=[contract.photoGoal?`${contract.photoGoal} photographs`:null,contract.samples?'2 samples':null,contract.readings?'3 readings':null,contract.recovery?'Sensor recovery':null,contract.repair?'3 isolated circuits':null].filter(Boolean);
+      const objectives=[contract.photoGoal?`${contract.photoGoal} photographs`:null,contract.samples?'2 samples':null,contract.readings?'3 readings':null,contract.recovery?'Sensor recovery':null,contract.repair?'3 isolated circuits':null,contract.interior?'Freighter entry, latch, cassette and separate exit':null].filter(Boolean);
       article.append(element('small',objectives.join(' / ')));
       const completed=state.completions[contract.id]??0,active=progress.expedition.contractId===contract.id&&!progress.expedition.sold,available=contractAvailable(contract,state.completed);
       const action=this.button(active?'Active expedition':!available?'Locked':completed?`Repeat / ${completed} completed`:'Accept contract',()=>{void this.accept(contract.id);},Compass);action.dataset.acceptContract=contract.id;

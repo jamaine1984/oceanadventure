@@ -6,7 +6,7 @@ from mathutils import Vector
 
 
 ROOT = Path(__file__).resolve().parents[1]
-MODEL_DIR = ROOT / "public" / "models"
+MODEL_DIR = ROOT / "assets" / "legacy-models"
 BLEND_DIR = ROOT / "assets" / "blender"
 OUTPUT_DIR = ROOT / "output"
 MODEL_DIR.mkdir(parents=True, exist_ok=True)

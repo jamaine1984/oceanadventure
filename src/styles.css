@@ -346,6 +346,8 @@ button:focus-visible {
 .story-radio__choices button { flex:1 1 150px; }
 .story-radio__status:empty { display:none; }
 .story-radio__status { padding:0 14px 14px;color:#efc893; }
+.dive-tools__feedback { margin:8px 0 0;font-size:12px;line-height:1.5;color:#f1cc91; }
+.dive-tools__feedback[hidden] { display:none; }
 .array-service { width:min(650px,calc(100vw - 24px));max-height:calc(100dvh - 24px);overflow:auto;padding:18px;border:1px solid #87a7a6;border-radius:6px;background:#12343d;color:#f4f0df; }
 .array-service::backdrop { background:#001b2644; }
 .array-service header { display:flex;justify-content:space-between;align-items:center;gap:12px; }

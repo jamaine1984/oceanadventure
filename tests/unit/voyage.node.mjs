@@ -5,11 +5,11 @@ import { fileURLToPath } from 'node:url';
 const bundle=await build({stdin:{contents:["export * from './src/voyage-catalog.ts';","export * from './src/voyage-state.ts';","export * from './src/save-archive.ts';","export * from './src/progression.ts';","export * from './src/expedition-state.ts';","export * from './src/chart-markers.ts';","export * from './src/field-equipment.ts';"].join('\n'),resolveDir:fileURLToPath(new URL('../../',import.meta.url)),loader:'ts'},bundle:true,platform:'node',format:'esm',write:false});
 const api=await import('data:text/javascript;base64,'+Buffer.from(bundle.outputFiles[0].text).toString('base64'));
 const storage=()=>{const values=new Map();const adapter={getItem:key=>values.get(key)??null,setItem:(key,value)=>values.set(key,value)};api.setProgressStorage(adapter);return {values,adapter};};
-const complete=id=>{const record=api.newContractExpedition(id),plan=api.expeditionPlan(record);record.photos=[...(plan.requiredSpecies.length?plan.requiredSpecies:['turtle','ray','tang'].slice(0,plan.photoGoal))];record.waterSample=plan.samplesRequired;record.sedimentSample=plan.samplesRequired;record.transectReadings=plan.stations.map((_,index)=>index);record.cableFreed=plan.recoveryRequired&&!plan.stations.length;record.sensorRecovered=record.cableFreed;if(plan.repairRequired)record.arrayRestored=true;return record;};
+const complete=id=>{const record=api.newContractExpedition(id),plan=api.expeditionPlan(record);record.photos=[...(plan.requiredSpecies.length?plan.requiredSpecies:['turtle','ray','tang'].slice(0,plan.photoGoal))];record.waterSample=plan.samplesRequired;record.sedimentSample=plan.samplesRequired;record.transectReadings=plan.stations.map((_,index)=>index);record.cableFreed=plan.recoveryRequired&&!plan.stations.length;record.sensorRecovered=record.cableFreed;if(plan.repairRequired)record.arrayRestored=true;if(plan.interiorRequired)record.interiorSteps=[0,1,2,3];return record;};
 
-test('catalog has sixteen distinct contracts, six activity families and one connected campaign',()=>{
-  assert.equal(api.CONTRACTS.length,16);assert.equal(new Set(api.CONTRACTS.map(item=>item.id)).size,16);assert.equal(new Set(api.CONTRACTS.map(item=>item.family)).size,6);
-  const chapters=api.CONTRACTS.filter(item=>item.story);assert.deepEqual(chapters.map(item=>item.story).sort(),[1,2,3,4]);
+test('catalog has seventeen distinct contracts, four districts and one connected campaign',()=>{
+  assert.equal(api.CONTRACTS.length,17);assert.equal(new Set(api.CONTRACTS.map(item=>item.id)).size,17);assert.equal(api.DISTRICTS.length,4);assert.equal(new Set(api.CONTRACTS.map(item=>item.family)).size,6);
+  const chapters=api.CONTRACTS.filter(item=>item.story);assert.deepEqual(chapters.map(item=>item.story).sort(),[1,2,3,4,5]);
   for(const contract of api.CONTRACTS){assert(api.DISTRICTS.some(item=>item.id===contract.district));for(const dependency of contract.prerequisites)assert(api.contractById(dependency));}
 });
 for(const contract of api.CONTRACTS)test(`contract ${contract.id} is completable with only its declared objectives`,()=>{
@@ -54,7 +54,7 @@ test('recovery never silently downgrades an unsupported newest checkpoint to an 
 });
 test('unsupported nested expedition versions block both primary and recovery rollback',()=>{
   const {values}=storage(),older=api.defaultProgress();older.credits=100;
-  const newer={...older,credits:1800,expedition:{...older.expedition,version:3}};
+  const newer={...older,credits:1800,expedition:{...older.expedition,version:4}};
   values.set('ocean-adventure-recovery-v1',JSON.stringify([api.createArchive(JSON.stringify(newer)),api.createArchive(JSON.stringify(older))]));values.set('ocean-adventure-progress-v1','corrupt');
   assert.throws(()=>api.loadProgress(),api.ProgressLoadError);assert.equal(values.get('ocean-adventure-progress-v1'),'corrupt');
   values.set('ocean-adventure-progress-v1',JSON.stringify(newer));assert.throws(()=>api.loadProgress(),api.ProgressLoadError);assert.equal(JSON.parse(values.get('ocean-adventure-progress-v1')).credits,1800);

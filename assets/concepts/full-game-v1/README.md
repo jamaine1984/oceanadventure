@@ -18,6 +18,6 @@ Each image is a separate single view, not a multi-view sheet. The regions and re
 
 ## Implementation Priorities
 
-The nine approved areas remain the complete scope: authored campaign; five playable regions; unique mission mechanics; NPC storytelling; meaningful progression; consequential environment; replay/endgame; opening experience; full release verification. This reference pass does not complete those areas. The first implementation is the opening/earned story radio and temporary counter NPCs. New regions, ROV, crafting/outposts, environmental schedules, endgame and measured long-campaign/device QA remain open.
+The nine approved areas remain the complete scope: authored campaign; five playable regions; unique mission mechanics; NPC storytelling; meaningful progression; consequential environment; replay/endgame; opening experience; full release verification. This reference pass does not complete those areas. The opening/earned story radio, temporary counter NPCs, array commissioning and Wreckward Reach's enterable freighter mission are implemented. The observatory, ROV, crafting/outposts, environmental schedules, endgame and measured long-campaign/device QA remain open. The wreck still needs richer visual dressing to approach this reference.
 
 Prompts and reference inputs are recorded in [PROMPTS.md](PROMPTS.md). Do not put unused concept art into the initial runtime package. The three radio portraits are the only current runtime concept imports.

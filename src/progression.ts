@@ -90,13 +90,18 @@ export function normalizeProgress(value: unknown): PlayerProgress {
     if(parsed.saveVersion!==undefined&&parsed.saveVersion!==2)throw new ProgressLoadError('This voyage was saved by a different game version. Keep the save and update the game.');
     if(parsed.story&&parsed.story.version!==1){if(parsed.story.version===undefined)throw new Error('The story record is incomplete.');throw new ProgressLoadError('This story record needs a different game version. Keep the save and update the game.');}
     if(parsed.voyage&&parsed.voyage.version!==1){if(parsed.voyage.version===undefined)throw new Error('The campaign record is incomplete.');throw new ProgressLoadError('The campaign save version is not supported. Keep the save and update the game.');}
-    if(parsed.expedition&&parsed.expedition.version!==2){if(parsed.expedition.version===undefined)throw new Error('The expedition record is incomplete.');throw new ProgressLoadError('The expedition save version is not supported. Keep the save and update the game.');}
+    if(parsed.expedition&&parsed.expedition.version!==2&&parsed.expedition.version!==3){if(parsed.expedition.version===undefined)throw new Error('The expedition record is incomplete.');throw new ProgressLoadError('The expedition save version is not supported. Keep the save and update the game.');}
+    if(parsed.expedition?.version===3){
+      if(typeof parsed.expedition.route!=='string'||!parsed.expedition.route.trim())throw new Error('The expedition route is incomplete.');
+      if(!['reef','lagoon','passage','reach'].includes(parsed.expedition.route))throw new ProgressLoadError('This route needs a different game version. Keep the save and update the game.');
+    }
+    if(parsed.expedition?.route==='reach'&&(parsed.expedition.contractId!=='reach-archive'||!Array.isArray(parsed.expedition.interiorSteps)))throw new Error('The freighter record is incomplete.');
     if(!Number.isFinite(parsed.credits)||parsed.credits<0||!Array.isArray(parsed.ownedBoats))throw new Error('The voyage is missing its saved balance or fleet.');
     if(parsed.saveVersion===2){
       const record=parsed.expedition,voyage=parsed.voyage;
       const object=(item:unknown)=>!!item&&typeof item==='object'&&!Array.isArray(item);
       const validUpgrades=object(parsed.upgrades)&&(Object.keys(UPGRADE_CATALOG)as UpgradeKey[]).every(key=>Number.isFinite(parsed.upgrades[key]));
-      const validExpedition=object(record)&&record.version===2&&Number.isFinite(record.run)&&typeof record.route==='string'&&typeof record.stage==='string'&&typeof record.checkpoint==='string'&&Array.isArray(record.photos)&&Array.isArray(record.transectReadings)&&object(record.photoImages)&&Number.isFinite(record.saleCredits)&&Number.isFinite(record.grantCredits)&&typeof record.grantState==='string'&&(['waterSample','sedimentSample','cableFreed','sensorRecovered','sold']as const).every(key=>typeof record[key]==='boolean');
+      const validExpedition=object(record)&&(record.version===2||record.version===3)&&Number.isFinite(record.run)&&typeof record.route==='string'&&typeof record.stage==='string'&&typeof record.checkpoint==='string'&&Array.isArray(record.photos)&&Array.isArray(record.transectReadings)&&object(record.photoImages)&&Number.isFinite(record.saleCredits)&&Number.isFinite(record.grantCredits)&&typeof record.grantState==='string'&&(['waterSample','sedimentSample','cableFreed','sensorRecovered','sold']as const).every(key=>typeof record[key]==='boolean');
       const validVoyage=object(voyage)&&voyage.version===1&&Array.isArray(voyage.completed)&&Array.isArray(voyage.discoveries)&&Array.isArray(voyage.blueprints)&&Array.isArray(voyage.pins)&&object(voyage.completions)&&object(voyage.reputation)&&(['mara','ivo','selene']as const).every(key=>Number.isFinite(voyage.reputation[key]));
       if(!Number.isFinite(parsed.expeditions)||parsed.expeditions<0||typeof parsed.activeBoat!=='string'||!Array.isArray(parsed.achievements)||!Array.isArray(parsed.discoveredSpecies)||!object(parsed.collectionPhotos)||!validUpgrades||!validExpedition||!validVoyage)throw new Error('The current-version voyage is incomplete.');
     }

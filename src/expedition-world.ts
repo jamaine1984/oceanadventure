@@ -212,9 +212,9 @@ export class ExpeditionWorld {
   }
 
   private createSeabed() {
-    const geo = new T.PlaneGeometry(720, 660, 180, 170); geo.rotateX(-Math.PI / 2); geo.translate(0, 0, -110);
+    const geo = new T.PlaneGeometry(840, 660, 210, 170); geo.rotateX(-Math.PI / 2); geo.translate(0, 0, -110);
     const p = geo.getAttribute('position'); for (let i = 0; i < p.count; i++) p.setY(i, expeditionFloor(p.getX(i), p.getZ(i)));
-    geo.computeVertexNormals(); const tex = surfaceTexture('sand'); tex.repeat.set(100, 90);
+    geo.computeVertexNormals(); const tex = surfaceTexture('sand'); tex.repeat.set(100*840/720, 90);tex.offset.x=-60/720*100;
     const sand = this.caustics(material(0xe2e0cb, .94, tex)); sand.bumpMap = tex; sand.bumpScale = .035;
     const bed = mesh(geo, sand, this.group); bed.name = 'Contoured sand channels';
   }

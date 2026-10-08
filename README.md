@@ -4,13 +4,15 @@ A standalone Three.js and Rapier expedition game with a Blender-authored yacht, 
 
 ## Full-Game Expansion
 
-The voyage atlas contains a discovery chart, persistent named waypoints, sixteen selectable contracts, a four-chapter campaign record, three research partners and reputation-based outfitter discounts. Contracts vary between photography, sampling, mapping, recovery, repairs and complete surveys across the existing bay, lagoon and limestone passage. Exploration outside contracts can follow charted waypoints.
+The voyage atlas contains a discovery chart, persistent named waypoints, seventeen selectable contracts, a five-chapter campaign record, three research partners and reputation-based outfitter discounts. Contracts vary between photography, sampling, mapping, recovery, repairs and complete surveys across the bay, lagoon, limestone passage and Wreckward Reach. Exploration outside contracts can follow charted waypoints.
 
 The opening expedition and earned reports use an authored radio conversation with questions and persistent decisions. Closing a report does not suppress later earned reports. Supporting harbor NPCs are temporary procedural figures permitted by the user; the existing supplied player remains unchanged. Their named slots support later model replacement.
 
 After archiving The Origin of the Pulse, accept Wake the Array at the harbor. Sail to the service station east of the vault, dive and use Scanner beside the Blender-authored cabinet. Route each source to its receiver frequency and polarity, test the isolated circuits, and commission the feed. The saved commissioning record must return to harbor for its 800-credit payout. Detection and dialogue grant no repair, cargo or payment. The cabinet streams within 180 meters rather than joining initial harbor construction.
 
-The nine image-first visual references and construction briefs are preserved in [the concept folder](assets/concepts/full-game-v1/README.md). They are not implemented destinations or final NPC models.
+After commissioning the array, The Freighter Archive opens Wreckward Reach. The Blender-authored Pelagic 05 has two hull openings and a collidable cargo interior. Log the entrance with Scanner, release the recorder latch with Cutter, recover the cassette with Scanner and log the separate port exit. Partial progress survives reload; the 1,100-credit reward requires returning to harbor. Scanning a contact alone does not complete an action.
+
+The nine image-first visual references and construction briefs are preserved in [the concept folder](assets/concepts/full-game-v1/README.md). They guide construction, not proof that every destination or final NPC model is implemented.
 
 The underwater Scanner automatically sweeps every seven simulation seconds. Its identification panel lists pending research instruments within 65 m and nearby modeled wildlife within 25 m, with name, range, depth below mean sea level, bearing, field notes and a relevant field action. Moving animals are explicitly last-sweep fixes, not live tracking. Up to five contacts have temporary, depth-tested markers. The Power icon toggles automatic/manual scanning; manual scans retain a separate cooldown so automatic sweeps cannot block them. Menus and reading acquisition pause automatic sweeps; surfacing or choosing another tool clears identification. Scanning never records photographs, completes readings or grants cargo.
 
@@ -88,6 +90,8 @@ npx --yes --package=@playwright/cli playwright-cli -s=story-check run-code --fil
 npx --yes --package=@playwright/cli playwright-cli -s=story-check close
 ```
 
+To verify the fifth chapter instead, run `scripts/verify-story-browser.cjs` then `scripts/verify-wreckward-browser.cjs` in the same disposable session. It seeds four prerequisite receipts and dive-drive ownership, then earns the freighter mission through controls. It checks failed-save feedback, partial reload, both breaches, drive withdrawal, solid-deck collision, mobile rendering, the 1,100-credit payment and pay-once/reload protection. It does not prove a normally earned five-chapter campaign.
+
 ## Work From Another Computer
 
 ```powershell
@@ -122,6 +126,10 @@ The active fleet uses the Blender-authored v2 vessels. Walking and swimming use 
 - `assets/blender/array_service_station.blend`
 - `public/models/array_service_station.glb`
 - `scripts/build_array_service.py`
+- `assets/blender/wreckward_freighter.blend`
+- `assets/blender/textures/wreckward/`
+- `public/models/wreckward_freighter.glb`
+- `scripts/build_wreckward_freighter.py`
 - `assets/characters/ocean-player-diver-legacy-runtime.glb`
 
 Repackage the shared player from the preserved supplied assets:
@@ -130,4 +138,4 @@ Repackage the shared player from the preserved supplied assets:
 node scripts/package_player_swim.mjs
 ```
 
-The older vessel/diver assets remain preserved. `npm run make:assets` runs the earlier asset generator, not the active v2 fleet builder. Use the v2 Blender script deliberately when changing the active vessel source.
+The older vessel/diver assets remain preserved in `assets/legacy-models`, outside the shipped public directory. `npm run make:assets` runs the earlier asset generator into that archive, not the active v2 fleet builder. Use the v2 Blender script deliberately when changing the active vessel source.

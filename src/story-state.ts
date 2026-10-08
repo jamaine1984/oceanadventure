@@ -5,6 +5,7 @@ export type StoryContext = { expeditions: number; expedition: ExpeditionRecord; 
 export type StoryChoice = { id: string; label: string; reply?: string; depart?: boolean };
 export type StoryScene = { id: string; speaker: Speaker; title: string; text: string; choices: StoryChoice[] };
 export const STORY_SCENES: readonly StoryScene[] = [
+  {id:'freighter-report',speaker:'selene',title:'Beyond the bay',text:'The archive is intact. Its deployment log lists a crewed observatory beyond the first survey districts. We have the first reliable record of where this network began.',choices:[{id:'continue',label:'Archive the deployment log'}]},
   {id:'restoration-report',speaker:'ivo',title:'The array wakes',text:'The commissioning record is archived. Three reference channels are transmitting again. The bay has a reliable network, and we have a safe starting point for the next expedition.',choices:[{id:'continue',label:'Archive the commissioning report'}]},
   {id:'welcome',speaker:'mara',title:'The Lost Signal',text:'The launch went silent. Its last transmission came from the reef. We need to find out why.',choices:[{id:'signal',label:'Ask about the signal',reply:'Three short pulses, then silence. Photograph the reef and collect the two marked samples before recovering the launch recorder. Selene needs the habitat record; Ivo needs the recorder intact.'},{id:'depart',label:'Accept expedition',depart:true}]},
   {id:'recorder',speaker:'ivo',title:'A voice beneath the reef',text:'That recorder is still carrying a pulse. It is repeating a station identifier, not a distress call. Bring it back intact. I can compare its clock with the lagoon instruments.',choices:[{id:'source',label:'Where is it coming from?',reply:'West, beneath the seagrass. We need three clean readings, not guesses. The channel stations can separate the echo from the source.'},{id:'continue',label:'Secure the recorder'}]},
@@ -37,6 +38,7 @@ export function storyAvailable(context:StoryContext,id:string):boolean {
   if(id==='lagoon-report')return c.includes('lagoon-echo');
   if(id==='array-report')return c.includes('passage-origin');
   if(id==='restoration-report')return c.includes('array-repair');
+  if(id==='freighter-report')return c.includes('reach-archive');
   return false;
 }
 export function nextStoryScene(context:StoryContext,excluded:readonly string[]=[]) {

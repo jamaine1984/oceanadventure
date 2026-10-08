@@ -101,6 +101,8 @@ export class Inventory {
       if(plan.photoGoal)row('Wildlife photographs', `${r.photos.length} recorded · ${r.photos.length * 120} credits`, Camera);
       if(plan.samplesRequired){row('Water sample', r.waterSample ? '1 sealed sample · 150 credits' : 'Not collected', FlaskConical);row('Sediment sample', r.sedimentSample ? '1 sealed sample · 200 credits' : 'Not collected', FlaskConical);}
       if(plan.recoveryRequired){if(plan.stations.length)row(plan.recoveryTitle, `${r.transectReadings.length}/${plan.stations.length} readings · ${r.transectReadings.length*plan.readingCredits} credits`, BookOpen);else row('Research sensor', r.sensorRecovered ? '1 recovered instrument · 550 credits' : 'Not recovered', Package);}
+      if(plan.interiorRequired)row('Pelagic 05 expedition archive',`${(r.interiorSteps??[]).length}/4 field records / ${(r.interiorSteps??[]).length>=3?'Cassette secured':'Cassette not recovered'}`,Package);
+      if(plan.repairRequired)row('Array commissioning record',r.arrayRestored?'Feed restored / harbor payment pending':'Not commissioned',BookOpen);
       if (r.sold) {
         row('Research payment', `${r.saleCredits} credits paid · Survey ${r.run}`, BookOpen);
         row('Research grant', r.grantState === 'claimed' ? `${r.grantCredits} bonus credits received` : r.grantState === 'earned' ? 'Confirmed · save pending' : 'Optional grant not claimed', BookOpen);

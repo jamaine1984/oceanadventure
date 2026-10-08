@@ -10,11 +10,11 @@ No feature is complete merely because it has a menu, a catalog entry or a passin
 
 | Recommendation | Implementation status |
 | --- | --- |
-| Five distinct ocean regions | Pending new authored regional environments; current bay, lagoon and passage retained |
+| Five distinct ocean regions | Bay, lagoon and passage retained; Wreckward Reach has a verified new mission; observatory pending |
 | Discovery map | Implemented first-bay chart, proximity discoveries, editable pins and physical navigation; larger regional chart pending |
-| Connected campaign | Implemented four linked contract definitions, opening/earned radio conversations and archived debriefs; campaign-wide authored expansion pending |
-| Selectable contract board | Implemented sixteen contracts across six activity families in the existing districts; full campaign catalog pending |
-| Enterable underwater landmarks | Existing limestone vault retained; additional wreck interiors/facilities pending |
+| Connected campaign | Implemented five linked contract definitions, opening/earned radio conversations and archived debriefs; campaign-wide authored expansion pending |
+| Selectable contract board | Implemented seventeen contracts across four districts; full campaign catalog pending |
+| Enterable underwater landmarks | Existing limestone vault retained; collidable freighter cargo interior and two-breach traversal verified; observatory pending |
 | Wildlife behavior and photography depth | Existing seven species retained; habitat expansion and behavior records pending |
 | Capability-unlocking tools | Range-limited sonar and blueprint-unlocked rechargeable Manta dive drive implemented; ROV and broader tool progression pending |
 | Distinct boats and useful deck facilities | Existing two supplied vessels retained; fleet expansion pending Blender authoring |
@@ -24,7 +24,7 @@ No feature is complete merely because it has a menu, a catalog entry or a passin
 | NPC relationships | Implemented three named contract clients, authored radio conversations, permitted temporary NPCs, earned reputation and capped outfitter discounts; final rigged NPCs and deeper mission chains pending |
 | Endgame expeditions | Repeatable selectable contracts implemented; multi-stop mastery expeditions pending |
 | Reliable saves and recovery | Implemented migration, rolling local recovery and validated export/import; cloud sync pending |
-| Streaming and technical release foundation | Pending regional asset streaming; startup profiling retained |
+| Streaming and technical release foundation | Repair cabinet and freighter load on regional approach; broader streaming and sustained performance gates pending |
 
 ## Delivery Sequence
 
@@ -42,9 +42,9 @@ The October 7 approval covers all nine production recommendations, not just the 
 
 | Approved area | Current state |
 | --- | --- |
-| Authored campaign | Four linked chapters; opening, earned revelations and archived reports implemented; larger regional story still pending |
-| Five playable regions | Three existing districts retained; Wreckward Reach and Pelagic Observatory are visual targets, not playable regions yet |
-| Distinct mission mechanics | Existing surveys/recovery/transects plus actual isolated-circuit commissioning; enterable freighter and ROV still pending |
+| Authored campaign | Five linked chapters; opening, earned revelations and archived reports implemented; larger regional story still pending |
+| Five playable regions | Three existing districts retained; Wreckward Reach mission verified; Pelagic Observatory remains a visual target |
+| Distinct mission mechanics | Surveys/recovery/transects, isolated-circuit commissioning and ordered freighter entry/latch/cassette/exit actions implemented; ROV pending |
 | NPC storytelling | Radio questions, saved decisions and three temporary procedural supporting NPCs; final supplied NPC GLBs and broader chains pending |
 | Earned progression | Existing boats/upgrades/blueprints/dive drive retained; materials, outposts and broader capability economy pending |
 | Consequential environment | Existing sea states retained; schedules, currents, forecast and day/night pending |
@@ -65,6 +65,18 @@ The fourth mission was accepted at harbor with only three prerequisite receipts 
 The authored cabinet renders in the arrival capture, and its commissioning panel remains bounded at all four sizes with scrolling in short views. A separately instantiated browser controller verified the actual loaded GLB's amber/green emissive state; it is not an in-world post-repair screenshot. This caught and repaired Three's normalized-node-name lookup. Physical walking reached the research and outfitter counters and opened Mara/Ivo conversations while retaining the real GLB player. Screenshots show the three permitted temporary supporting figures. They are not final character art.
 
 The single critic found no remaining concrete P1/P2 within this scoped delivery after the dismissed-report, landscape, return-routing and migration repairs. Its visual score remains 7.6/10 under the unchanged rubric; gameplay remains provisional. The walkthrough's NPC captures displayed 1 and 18 FPS during non-isolated interaction/loading samples, not benchmark averages. No universal loading improvement, sustained 60 FPS or production certification is claimed. Performance, the two new regions, ROV/material crafting/outposts, environmental schedules, endgame, asset-rights review, human long-campaign play and physical-device/hosted gates remain open. Production remains HOLD.
+
+## October 8 Wreckward Reach Delivery
+
+The fourth region adds the fifth chapter, The Freighter Archive, unlocked by array commissioning. The approximately 36-meter Pelagic 05 freighter is authored in Blender with a swimmable cargo corridor, separate starboard/port breaches, recorder, upper deck and bridge fittings. Four baked 512-pixel surface maps are embedded in its 1,998,580-byte GLB. The isolated Blender script and `.blend` remain editable. Live Blender MCP was unavailable; the verified portable Blender fallback performed the build. The supplied player and active boats are unchanged.
+
+The freighter streams within 170 meters. Native Rapier character-controller collision uses exported Blender proxies, not detailed triangle collision. Scanner logs entry, Cutter releases the latch, Scanner retrieves the cassette, and Scanner logs the separate exit. Each ordered field record saves before changing live progress. Failed writes show persistent feedback in the visible mobile tool panel. Withdrawal clears the hull before ascent, including the carried dive drive; a partial reload approaches through a breach rather than through the deck. The compatible nested expedition schema is now version 3. Unsupported versions/routes block rollback, while incomplete route data can recover from compatible backups.
+
+All 97 focused Node checks freshly pass, including actual GLB geometry/proxies, native Rapier walls/deck/openings and swept collision, ordered actions, payment gates and migration/recovery. The Node texture loader is intentionally stubbed; texture evidence comes separately from the browser. All 20 selected existing browser regressions freshly pass: expedition state, grants, photograph framing and responsive HUD. The production build and portal package pass at 24 files / 49.55 MB. This is not a fresh full release gate.
+
+The isolated CLI walkthrough seeds only four prerequisite chapter receipts and dive-drive ownership, with zero credits and no freighter cargo. Actual controls accept the mission, sail to the wreck, descend, retry an injected mobile save failure, earn entry, withdraw with the enabled drive, reload that legitimate partial record, re-enter, release the latch, recover the archive, test the solid deck, exit separately, board, sail home and earn 1,100 credits. Duplicate cash-in is disabled and the paid receipt survives reload. Four viewport captures and raw-canvas pixel checks pass at 1280x720, 390x844, 844x390 and 320x568. A separate browser model load verifies all four baked images, not a rendering benchmark. These checks prove the new mission, not an earned five-chapter campaign. Reproduce using `verify-story-browser.cjs` then `verify-wreckward-browser.cjs` in the same disposable CLI profile.
+
+Unused original yacht/diver GLBs moved byte-for-byte into `assets/legacy-models`; their legacy builders target that archive. This preserves source assets while keeping the package below its 50 MB limit, not proving faster startup. The sole critic reports no new scoped P1/P2, but notes flat-looking wear, sparse dressing and faceted rocks. Visual scoring remains 7.6/10, gameplay provisional and production HOLD. Observatory/ROV, materials/outposts, consequential weather, endgame, richer environmental art, sustained performance, asset rights and full campaign/device/hosted gates remain open.
 
 ## First Foundation Verification
 

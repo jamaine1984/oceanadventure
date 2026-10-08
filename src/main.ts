@@ -24,6 +24,8 @@ import { completeStory } from './story-state';
 import { ResearchPartners } from './research-partners';
 import { ArrayService } from './array-service';
 import { commissionArray } from './array-repair';
+import { WreckwardWorld } from './wreckward-world';
+import { REACH_SITE, FREIGHTER_STEPS, freighterObjective, freighterApproach, freighterExit, freighterStepReady, recordFreighterStep } from './wreckward';
 import { VoyageAtlas } from './voyage-atlas';
 import { contractById, contractAvailable, nextStoryContract } from './voyage-catalog';
 import { discoverNearby, recordContractCompletion, waypointLocation } from './voyage-state';
@@ -293,6 +295,8 @@ let voyageAtlas: VoyageAtlas;
 let storyDialog:StoryDialog;
 let researchPartners:ResearchPartners;
 let arrayService:ArrayService;
+let wreckward:WreckwardWorld;
+let freighterFeedback='';
 let automaticStory=false;
 let replacingVoyage=false;
 let adBusy = false;
@@ -601,6 +605,7 @@ async function initialize() {
   researchPartners=new ResearchPartners(scene,expeditionWorld.walking.height.bind(expeditionWorld.walking));
   storyDialog=new StoryDialog(()=>progress,finishConversation,open=>{clearPlayerInput();resetFrameClock();if(open)platform.gameplayStop();else resumePlatformIfPlaying();});
   arrayService=new ArrayService(scene,expeditionFloor(190,-156),finishArrayRepair,open=>{clearPlayerInput();resetFrameClock();if(open)platform.gameplayStop();else resumePlatformIfPlaying();});
+  wreckward=new WreckwardWorld(scene,expeditionFloor(REACH_SITE.x,REACH_SITE.z));
   diveSonar=new DiveSonar(scene);
   if(progress.fieldEquipment?.scooter)void ensureDiveDrive().catch(()=>setNotice('Dive drive model unavailable. Your equipment is saved; toggle the drive to retry.'));
   selectWeather('bluewater', false);
@@ -1661,7 +1666,7 @@ function tick() {
   updateEnvironment();
   expeditionWorld.update(gameTime, activePlayerPosition(), cameraUnderwater, progress.upgrades.light);
   const scanRecord=progress.expedition;
-  const scanContext=[scanRecord.run,scanRecord.contractId,scanRecord.route,scanRecord.stage,scanRecord.waterSample,scanRecord.sedimentSample,scanRecord.cableFreed,scanRecord.sensorRecovered,...scanRecord.transectReadings].join('|');
+  const scanContext=[scanRecord.run,scanRecord.contractId,scanRecord.route,scanRecord.stage,scanRecord.waterSample,scanRecord.sedimentSample,scanRecord.cableFreed,scanRecord.sensorRecovered,scanRecord.arrayRestored,...scanRecord.transectReadings,...(scanRecord.interiorSteps??[])].join('|');
   if(scanContext!==sonarContext){sonarContext=scanContext;sonarStarted=-Infinity;sonarResults=[];diveSonar.clear();}
   if(scannerReady({swimming:playerMode==='swim',selected:selectedTool==='scanner'&&scannerAutomatic,depth:sampleOceanHeight(swimmer.position.x,swimmer.position.z,gameTime)-swimmer.position.y,paused:menusOpen(),acquiring:!!transectReading,time:gameTime,lastSweep:sonarStarted}))emitDiveSonar(false);
   if(playerMode!=='swim'||selectedTool!=='scanner'||sampleOceanHeight(swimmer.position.x,swimmer.position.z,gameTime)-swimmer.position.y<=.6){sonarStarted=-Infinity;sonarResults=[];diveSonar.clear();}
@@ -1952,10 +1957,10 @@ function updateSwimmer(delta: number) {
     if(Math.abs(move)+Math.abs(turn)+Math.abs(strafe)+Math.abs(vertical)+Math.abs(gamepadThrottle)+Math.abs(gamepadSteer)+Math.abs(gamepadVertical)>.1)cancelSwimAssist();
     else{
       const target=objectiveLocation();const d=target.clone().sub(swimmer.position);const range=d.length();
-      const approach=selectedTool==='scanner'&&passageApproach(progress.expedition,swimmer.position);
-      const exiting=(swimReturnToBoat||progress.expedition.stage==='return'||habitatBoatReturn())&&passageExit(progress.expedition,swimmer.position,yacht.position,expeditionWorld.passageClearance);
-      const stop=exiting?1:swimReturnToBoat?1.4:selectedTool==='camera'?6:approach?1:progress.expedition.route==='passage'&&progress.expedition.stage==='transect'?3.15:2.3;
-      if(exiting&&exiting.y>expeditionWorld.passageClearance) {
+      const approach=freighterApproach(progress.expedition,swimmer.position,wreckward.floor)||(selectedTool==='scanner'&&passageApproach(progress.expedition,swimmer.position));
+      const exiting=(swimReturnToBoat||progress.expedition.stage==='return'||habitatBoatReturn())&&diveExitRoute();
+      const stop=exiting?1:swimReturnToBoat?1.4:progress.expedition.stage==='interior'?.6:selectedTool==='camera'?6:approach?1:progress.expedition.route==='passage'&&progress.expedition.stage==='transect'?3.15:2.3;
+      if(exiting&&('ascent' in exiting?exiting.ascent:exiting.y>expeditionWorld.passageClearance)) {
         // Clearance ascent must not steer residual forward motion back into the vault.
         swimSpeed=0;forwardInput=0;verticalInput=.85;swimPitch=THREE.MathUtils.damp(swimPitch,0,4,delta);
       } else {
@@ -1989,10 +1994,12 @@ function updateSwimmer(delta: number) {
     tmpVectorD.set(0,-.28,-1.05).applyQuaternion(swimmer.quaternion);
     tmpVectorC.copy(swimmer.position).add(tmpVectorD);tmpVectorE.copy(previousSwimPosition).add(tmpVectorD);
     expeditionWorld.resolveDiver(tmpVectorC,tmpVectorE);
+    wreckward?.resolveDiver(tmpVectorC,tmpVectorE,swimmer.quaternion);
     tmpVectorC.sub(swimmer.position).sub(tmpVectorD);swimmer.position.add(tmpVectorC);
   }
   expeditionWorld.resolveDiver(swimmer.position, previousSwimPosition);
   arrayService?.resolveDiver(swimmer.position,previousSwimPosition);
+  wreckward?.resolveDiver(swimmer.position,previousSwimPosition,swimmer.quaternion);
   if(cruiseActive && Math.abs(swimSpeed)>1 && swimmer.position.distanceToSquared(previousSwimPosition)<delta*delta*.10){
     assistBlockedSeconds+=delta;
     if(assistBlockedSeconds>3){cruiseActive=false;swimReturnToBoat=false;assistBlockedSeconds=0;setNotice('A rock blocks this route. Swim around it, then resume assist.');}
@@ -2022,10 +2029,10 @@ function updateMissions(delta: number) {
     record.checkpoint = 'reef'; persistExpedition();
   }
   if (record.stage === 'reef' && reefComplete(record)) {
-    record.stage = plan.repairRequired?'repair':plan.stations.length?'transect':'wreck'; cruiseActive = false; persistExpedition(); setNotice(plan.repairRequired?'Ivo: The cabinet east of the vault needs commissioning. Follow its bearing.':`${plan.habitat} survey complete. Board the vessel and sail to ${plan.recoveryTitle.toLowerCase()}.`);
+    record.stage = plan.interiorRequired?'interior':plan.repairRequired?'repair':plan.stations.length?'transect':'wreck'; cruiseActive = false; persistExpedition(); setNotice(plan.interiorRequired?'Mara: Record the starboard breach before recovering the freighter archive.':plan.repairRequired?'Ivo: The cabinet east of the vault needs commissioning. Follow its bearing.':`${plan.habitat} survey complete. Board the vessel and sail to ${plan.recoveryTitle.toLowerCase()}.`);
   }
-  if ((record.stage === 'wreck'||record.stage==='transect'||record.stage==='repair') && Math.hypot(yacht.position.x - plan.secondSite.x, yacht.position.z - plan.secondSite.z) < 45 && record.checkpoint !== (record.stage==='repair'?'transect':record.stage)) {
-    record.checkpoint = record.stage==='repair'?'transect':record.stage; persistExpedition();
+  if ((record.stage === 'wreck'||record.stage==='transect'||record.stage==='repair'||record.stage==='interior') && Math.hypot(yacht.position.x - plan.secondSite.x, yacht.position.z - plan.secondSite.z) < 45 && record.checkpoint !== (record.stage==='repair'||record.stage==='interior'?'transect':record.stage)) {
+    record.checkpoint = record.stage==='repair'||record.stage==='interior'?'transect':record.stage; persistExpedition();
   }
   if(transectReading) {
     const station=plan.stations[transectReading.index];
@@ -2047,6 +2054,7 @@ function updateMissions(delta: number) {
   }
   expeditionWorld.updateSites(record, selectedTool);
   arrayService?.update(active,record.contractId==='array-repair'&&!record.sold?record.arrayRestored===true:progress.voyage.completed.includes('array-repair'));
+  wreckward?.update(active,record.route==='reach'&&(record.interiorSteps?.length??0)>=3);
   if (gameTime > nextSaveAt) { persistExpedition(); nextSaveAt = gameTime + 20; }
 }
 
@@ -2070,12 +2078,13 @@ function objectiveLocation() {
   if(playerMode==='walk'){const target=ISLAND_LANDMARKS[walkDestination];return new THREE.Vector3(target.x,expeditionWorld.walking.height(target.x,target.z),target.z);}
   const record = progress.expedition;
   if(playerMode==='swim'&&(swimReturnToBoat || record.stage==='return' || habitatBoatReturn())){
-    const exit=passageExit(record,swimmer.position,yacht.position,expeditionWorld.passageClearance);
+    const exit=diveExitRoute();
     if(exit)return new THREE.Vector3(exit.x,exit.y,exit.z);
     const point=new THREE.Vector3(BOAT_CATALOG[progress.activeBoat].beam*.58+1.2,0,0).applyQuaternion(yacht.quaternion).add(yacht.position);
     point.y=sampleOceanHeight(point.x,point.z,gameTime)-.2;return point;
   }
   if(record.stage==='repair')return playerMode==='helm'?new THREE.Vector3(planRepairSite().x,0,planRepairSite().z):arrayService.position.clone();
+  if(record.stage==='interior'){if(playerMode==='helm')return new THREE.Vector3(REACH_SITE.x,0,REACH_SITE.z);const point=freighterApproach(record,swimmer.position,wreckward.floor)??freighterObjective(record,wreckward.floor);return point?new THREE.Vector3(point.x,point.y,point.z):marinaPosition.clone();}
   if (record.stage === 'briefing' || record.stage === 'return' || record.stage === 'complete') return marinaPosition.clone();
   if (playerMode === 'helm') { const plan=expeditionPlan(record),site = record.stage === 'reef' ? plan.site : plan.secondSite; return new THREE.Vector3(site.x, 0, site.z); }
   if (record.stage === 'reef') {
@@ -2100,6 +2109,11 @@ function useDiveTool() {
   if(playerMode==='walk'){useLandInteraction();return;}
   if (playerMode !== 'swim' || menusOpen() || gameTime - lastToolUse < .65) return;
   const record = progress.expedition;
+  if(record.stage==='interior'){
+    if(!wreckward.loaded){setNotice('The freighter is still preparing. No archive progress has been recorded.');return;}
+    try{const next=structuredClone(progress);next.expedition=recordFreighterStep(record,selectedTool,swimmer.position,wreckward.floor);try{saveProgress(next);}catch{freighterFeedback='Field record could not be saved. Your archive is unchanged. Allow storage and retry.';setNotice(freighterFeedback);updateHud();return;}Object.assign(progress,next);freighterFeedback='';lastToolUse=gameTime;cancelSwimAssist();updateHud();music?.playCue('signal');setNotice(next.expedition.stage==='return'?'Archive secured and exit recorded. Board the yacht and bring the cassette home.':FREIGHTER_STEPS[next.expedition.interiorSteps.length].action);}
+    catch(error){setNotice((error as Error).message);}return;
+  }
   if(record.stage==='repair'&&selectedTool==='scanner'&&arrayRepairReady()){cancelSwimAssist();arrayService.show();return;}
   if (record.stage !== 'reef' && record.stage !== 'wreck' && record.stage!=='transect') { if(selectedTool==='scanner'){emitDiveSonar();return;}setNotice('Begin a research expedition at the harbor first.'); return; }
   lastToolUse = gameTime;
@@ -2188,6 +2202,7 @@ function renderJournal() {
   if(plan.samplesRequired)goals.push(['Collect a water sample',r.waterSample],['Collect a sediment sample',r.sedimentSample]);
   if(plan.recoveryRequired)goals.push(...(plan.stations.length?plan.stations.map((station,index)=>[`Record ${station.name}`,r.transectReadings.includes(index)]as[string,boolean]):[['Free the wreck sensor cable',r.cableFreed],['Recover the research sensor',r.sensorRecovered]]as[string,boolean][]));
   if(plan.repairRequired)goals.push(['Commission the three isolated array circuits',r.arrayRestored===true]);
+  if(plan.interiorRequired)for(const [index,step]of FREIGHTER_STEPS.entries())goals.push([step.action,(r.interiorSteps??[]).includes(index)]);
   goals.push(['Sell the cargo at the harbor',r.sold]);
   journalContent.innerHTML=`<p class="journal__intro">${plan.title} · Survey ${r.run} · ${completedObjectives(r)}/${objectiveCount(r)} objectives · ${expeditionReward(r)} credits in cargo</p><div class="journal__goals">${goals.map(([name,done])=>`<div class="${done?'is-done':''}"><span>${done?'✓':'○'}</span>${name}</div>`).join('')}</div><h3>Wildlife observations</h3><div class="journal__species">${(Object.entries(SPECIES)as[SpeciesKey,typeof SPECIES[SpeciesKey]][]).map(([key,s])=>`<article class="${r.photos.includes(key)?'is-done':''}">${r.photoImages[key]?`<img src="${r.photoImages[key]}" alt="${s.name} photographed during this survey" loading="lazy">`:""}<small>${r.photos.includes(key)?'Photographed this survey':progress.discoveredSpecies.includes(key)?'Previously discovered':'Not yet photographed'}</small><strong>${s.name}</strong><p>${s.note}</p></article>`).join('')}</div><p class="journal__intro">Autosaved every 20 seconds and after discoveries. Atlas contains campaign records and recovery checkpoints.</p>`;
 }
@@ -2396,6 +2411,7 @@ function emitDiveSonar(manual=true){
   if(remaining>0){setNotice(`Sonar recharging · ${Math.ceil(remaining)} s.`);return;}
   if(manual)sonarManualStarted=gameTime;
   const point=arrayService.position,extra:ScanIdentification[]=progress.expedition.stage==='repair'?[{id:'array-service',name:'Array service station',kind:'Research instrument',note:'Isolated reference channels. West 46 Hz reversed / Center 18 Hz normal / North 32 Hz reversed.',action:'Scanner / commission at the cabinet',x:point.x,y:point.y,z:point.z,distance:swimmer.position.distanceTo(point),bearing:Math.atan2(point.x-swimmer.position.x,-(point.z-swimmer.position.z)),vertical:point.y-swimmer.position.y}]:[];
+  const freighter=freighterObjective(progress.expedition,wreckward.floor);if(freighter)extra.push({id:`freighter-${freighter.id}`,name:freighter.name,kind:'Research instrument',note:freighter.index===0?'A wide starboard breach into the flooded cargo corridor.':freighter.index<3?'The sealed deployment archive inside Pelagic 05.':'A separate port breach leading into open water.',action:`${freighter.tool==='cutter'?'Cutter':'Scanner'} / ${freighter.action.toLowerCase()}`,x:freighter.x,y:freighter.y,z:freighter.z,distance:swimmer.position.distanceTo(new THREE.Vector3(freighter.x,freighter.y,freighter.z)),bearing:Math.atan2(freighter.x-swimmer.position.x,-(freighter.z-swimmer.position.z)),vertical:freighter.y-swimmer.position.y});
   sonarResults=identifyScan(progress.expedition,swimmer.position,expeditionWorld.animals,extra);sonarStarted=gameTime;sonarSweeps++;
   diveSonar.emit(swimmer.position,sonarResults,gameTime);
   if(manual){setNotice(sonarResults.length?`Sonar identified ${sonarResults[0].name} / ${sonarResults.length} contact${sonarResults.length===1?'':'s'}.`:'Sonar: no contacts in range.');music?.playCue('signal');}updateHud();
@@ -2422,6 +2438,7 @@ async function finishConversation(id:string,choice:string):Promise<boolean>{
 }
 
 function planRepairSite(){return expeditionPlan(progress.expedition).secondSite;}
+function diveExitRoute(){return freighterExit(swimmer.position,wreckward.floor)??passageExit(progress.expedition,swimmer.position,yacht.position,expeditionWorld.passageClearance);}
 function arrayRepairReady(){return playerMode==='swim'&&progress.expedition.stage==='repair'&&arrayService?.loaded&&swimmer.position.distanceTo(arrayService.position)<3.5;}
 function finishArrayRepair(circuits:Parameters<typeof commissionArray>[1]){
   if(!arrayRepairReady())return false;
@@ -2732,7 +2749,7 @@ function updateHud() {
   if(depthText)depthText.textContent=Math.max(0,sampleOceanHeight(p.x,p.z,gameTime)-p.y).toFixed(1);if(airText)airText.textContent=Math.ceil(oxygen).toString();
   airStatus?.classList.toggle('is-low',oxygen<25);if(modeToggle){modeToggle.textContent=playerMode==='helm'?'Dive':playerMode==='walk'?walkBoardRequested?'Cancel boat return':canBoardFromIsland()?'Board boat':'Return to boat':swimReturnToBoat?'Cancel boat return':canBoardSwimmer()?'Board boat':'Return to boat';modeToggle.disabled=playerMode==='walk'&&walkRouting;}
   if(walkButton){walkButton.hidden=playerMode!=='helm';walkButton.disabled=!boatAtLanding();}
-  const objectives={briefing:'Begin your research expedition',repair:playerMode==='helm'?'Sail to the array service station':'Commission the array circuits',reef:playerMode==='helm'?r.route==='passage'?'Sail to the coral garden':r.route==='lagoon'?'Sail to the turtle lagoon':'Sail to the reef survey site':`${plan.habitat} · ${surveyPhotoCount(r)}/${plan.photoGoal} species · ${Number(r.waterSample)+Number(r.sedimentSample)}/2 samples`,wreck:playerMode==='helm'?'Sail to the wreck recovery site':r.cableFreed?'Retrieve the research sensor':'Free the snagged sensor cable',transect:playerMode==='helm'?`Sail to the ${plan.recoveryTitle.toLowerCase()}`:`${plan.recoveryTitle} · ${r.transectReadings.length}/3 readings`,return:'Return to the research harbor',complete:'Expedition complete · new gear awaits'};
+  const objectives={briefing:'Begin your research expedition',interior:playerMode==='helm'?'Sail to Wreckward Reach':`Pelagic 05 / ${r.interiorSteps?.length??0}/4 field records`,repair:playerMode==='helm'?'Sail to the array service station':'Commission the array circuits',reef:playerMode==='helm'?r.route==='passage'?'Sail to the coral garden':r.route==='lagoon'?'Sail to the turtle lagoon':'Sail to the reef survey site':`${plan.habitat} · ${surveyPhotoCount(r)}/${plan.photoGoal} species · ${Number(r.waterSample)+Number(r.sedimentSample)}/2 samples`,wreck:playerMode==='helm'?'Sail to the wreck recovery site':r.cableFreed?'Retrieve the research sensor':'Free the snagged sensor cable',transect:playerMode==='helm'?`Sail to the ${plan.recoveryTitle.toLowerCase()}`:`${plan.recoveryTitle} · ${r.transectReadings.length}/3 readings`,return:'Return to the research harbor',complete:'Expedition complete · new gear awaits'};
   if(objectiveText)objectiveText.textContent=objectives[r.stage];
   if(r.contractId&&r.stage==='reef'&&objectiveText)objectiveText.textContent=playerMode==='helm'?`Sail to ${plan.habitat.toLowerCase()}`:[plan.photoGoal?`${surveyPhotoCount(r)}/${plan.photoGoal} photographs`:null,plan.samplesRequired?`${Number(r.waterSample)+Number(r.sedimentSample)}/2 samples`:null].filter(Boolean).join(' / ');
   if(objectiveText&&playerMode==='swim'&&(swimReturnToBoat||r.stage==='return'||habitatBoatReturn()))objectiveText.textContent='Return to your vessel · surface and board';
@@ -2763,10 +2780,13 @@ function updateHud() {
   }
   if(selectedTool==='scanner'&&r.stage!=='transect')interactionReady=gameTime-sonarManualStarted>=SONAR_COOLDOWN||(r.stage==='wreck'&&r.cableFreed&&swimmer.position.distanceTo(new THREE.Vector3(SAMPLE_SITES.sensor.x,SAMPLE_SITES.sensor.y,SAMPLE_SITES.sensor.z))<3.6);
   if(r.stage==='repair'&&selectedTool==='scanner'){interactionReady=arrayRepairReady()||gameTime-sonarManualStarted>=SONAR_COOLDOWN;prompt=`Array service station / ${Math.round(p.distanceTo(arrayService.position))} m${arrayRepairReady()?' / ready to commission':!arrayService.loaded?' / preparing station':''}`;}
-  const sonarButton=document.querySelector<HTMLButtonElement>('[data-sonar-pulse]');if(sonarButton){sonarButton.hidden=selectedTool!=='scanner'||r.stage!=='transect';sonarButton.disabled=playerMode!=='swim'||!!transectReading||gameTime-sonarManualStarted<SONAR_COOLDOWN;}
+  if(r.stage==='interior'){const step=freighterObjective(r,wreckward.floor);interactionReady=wreckward.loaded&&freighterStepReady(r,selectedTool,p,wreckward.floor);if(step)prompt=`${step.name} / ${Math.round(Math.hypot(p.x-step.x,p.y-step.y,p.z-step.z))} m / ${step.tool==='cutter'?'Cutter':'Scanner'}`;if(!wreckward.loaded)prompt='Preparing freighter interior';}
+  const sonarButton=document.querySelector<HTMLButtonElement>('[data-sonar-pulse]');if(sonarButton){sonarButton.hidden=selectedTool!=='scanner'||r.stage!=='transect'&&r.stage!=='interior';sonarButton.disabled=playerMode!=='swim'||!!transectReading||gameTime-sonarManualStarted<SONAR_COOLDOWN;}
   interactionReady=interactionReady&&gameTime-lastToolUse>=.65;
   if(toolPrompt)toolPrompt.textContent=prompt;if(interactButton){interactButton.disabled=playerMode!=='swim'||!interactionReady;interactButton.textContent=selectedTool==='camera'?'Photograph · F':selectedTool==='sampler'?'Collect sample · F':selectedTool==='cutter'?'Release cable · F':r.stage==='transect'?transectReading?'Acquiring…':'Acquire reading · F':'Scan / recover · F';}
   if(interactButton&&r.stage==='repair'&&selectedTool==='scanner'&&arrayRepairReady())interactButton.textContent='Commission array / F';
+  if(r.stage==='interior'){const step=freighterObjective(r,wreckward.floor);if(interactButton)interactButton.textContent=`${step?.action??'Use tool'} / F`;if(npcText&&oxygen>=25)npcText.textContent='Mara: Starboard entry, archive cassette, port escape. The overhead deck is solid; leave the breach before surfacing.';if(guide)guide.textContent=`${formatHeading(bearing)} / ${Math.round(p.distanceTo(target))} m / Pelagic 05`;}
+  const freighterStatus=document.querySelector<HTMLElement>('[data-freighter-status]');if(freighterStatus){freighterStatus.hidden=r.stage!=='interior'||!freighterFeedback;freighterStatus.textContent=freighterFeedback;}
   if(r.stage==='repair'&&npcText&&oxygen>=25)npcText.textContent='Ivo: Match frequencies and polarity to the receiver plates. Test before restoring the feed.';
   if(r.stage==='repair'&&guide)guide.textContent=`${formatHeading(bearing)} / ${Math.round(p.distanceTo(target))} m / Array service station`;
   const readingProgress=document.querySelector<HTMLProgressElement>('[data-reading-progress]');if(readingProgress){readingProgress.hidden=!transectReading;readingProgress.value=transectReading?.seconds??0;}
