@@ -158,6 +158,7 @@ function finGeometry(outline: T.Vector3[], thickness = .022) {
 }
 
 export class ExpeditionWorld {
+  marineMetalTexture?:T.Texture;
   readonly group = new T.Group();
   private readonly undersea = new T.Group();
   readonly walking = new IslandWalk(islandHeight);
@@ -592,7 +593,7 @@ export class ExpeditionWorld {
 
   private createWreck() {
     this.wreck.name='Lost survey launch wreck'; this.wreck.position.set(WRECK_SITE.x,-26.2,WRECK_SITE.z); this.wreck.rotation.set(.065,-.5,.10);this.group.add(this.wreck);
-    const rustMap=new T.TextureLoader().load('/textures/expedition/oxidized-marine-steel.png');rustMap.colorSpace=T.SRGBColorSpace;rustMap.wrapS=rustMap.wrapT=T.RepeatWrapping;rustMap.repeat.set(1,1);rustMap.anisotropy=4;
+    const rustMap=new T.TextureLoader().load('/textures/expedition/oxidized-marine-steel.png');this.marineMetalTexture=rustMap;rustMap.colorSpace=T.SRGBColorSpace;rustMap.wrapS=rustMap.wrapT=T.RepeatWrapping;rustMap.repeat.set(1,1);rustMap.anisotropy=4;
     const steel=this.caustics(material(0xe3ddd0,.91,rustMap));steel.bumpMap=rustMap;steel.bumpScale=.045;
     const rib=material(0x685a46,.9); const dark=material(0x273e3c,.82); const verts:number[]=[],indices:number[]=[];
     for(let row=0;row<=28;row++){const t=row/28,z=(t-.5)*21;const w=3.4*Math.pow(Math.sin(Math.PI*t),.42);

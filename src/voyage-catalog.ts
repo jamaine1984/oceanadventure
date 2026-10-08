@@ -1,15 +1,16 @@
-export type DistrictKey = 'bay' | 'lagoon' | 'passage' | 'reach';
+export type DistrictKey = 'bay' | 'lagoon' | 'passage' | 'reach' | 'pelagic';
 export const CHART_BOUNDS={minX:-360,maxX:260,minZ:-225,maxZ:105} as const;
 export type ContractFamily = 'survey' | 'photography' | 'sampling' | 'mapping' | 'recovery' | 'repair';
 export type ContractSpecies = 'turtle' | 'ray' | 'tang' | 'butterflyfish' | 'anthias' | 'reefshark' | 'hammerhead';
 export type ContractDefinition = {
-  id: string; title: string; district: DistrictKey; route: 'reef' | 'lagoon' | 'passage' | 'reach';
+  id: string; title: string; district: DistrictKey; route: 'reef' | 'lagoon' | 'passage' | 'reach' | 'pelagic';
   family: ContractFamily; client: 'mara' | 'ivo' | 'selene';
   briefing: string; debrief: string; story?: number; prerequisites: readonly string[];
   species: readonly ContractSpecies[]; photoGoal: number; samples: boolean; readings: boolean;
-  recovery: boolean; repair?: boolean; interior?:boolean; bonus: number; reputation: number; blueprint?: 'survey-anchor' | 'scooter-drive' | 'research-rov';
+  recovery: boolean; repair?: boolean; interior?:boolean; remote?:boolean; bonus: number; reputation: number; blueprint?: 'survey-anchor' | 'scooter-drive' | 'research-rov';
 };
 export const DISTRICTS = [
+  {id:'pelagic' as const,name:'Pelagic Observatory',x:225,z:-190,radius:25,requires:'reach-archive',color:'#87b6aa',description:'A flooded monitoring hall, an open service hatch and three crew-era data terminals.'},
   { id:'reach' as const,name:'Wreckward Reach',x:-300,z:-170,radius:42,requires:'array-repair',color:'#c79c79',description:'The research freighter Pelagic 05, a breached cargo corridor and a sealed expedition archive.' },
   { id: 'bay' as const, name: 'Bluewater Bay', x: 0, z: -86, radius: 60, requires: '', color: '#68cbd4', description: 'Coral shelves, the research harbor and the lost survey launch.' },
   { id: 'lagoon' as const, name: 'Seagrass Lagoon', x: -112, z: -100, radius: 60, requires: 'bay-signal', color: '#81b98c', description: 'Turtle feeding grounds and an acoustic monitoring transect.' },
@@ -22,6 +23,7 @@ export const CLIENTS = {
 } as const;
 
 export const CONTRACTS: readonly ContractDefinition[] = [
+  {id:'pelagic-record',title:'The Observatory Record',district:'pelagic',route:'pelagic',family:'mapping',client:'selene',story:6,prerequisites:['reach-archive'],species:[],photoGoal:0,samples:false,readings:false,recovery:false,remote:true,bonus:1150,reputation:45,briefing:'Deploy the Sentry ROV beside the observatory. Enter the service opening and acquire the chronometer, habitat archive and crew deployment log in order. Keep each terminal in the optical view during acquisition, then bring the data back to harbor.',debrief:'The crew evacuated safely. The monitoring network was left running to protect a long-term habitat record. The complete deployment history is now archived.'},
   {id:'reach-archive',title:'The Freighter Archive',district:'reach',route:'reach',family:'recovery',client:'mara',story:5,prerequisites:['array-repair'],species:[],photoGoal:0,samples:false,readings:false,recovery:false,interior:true,bonus:1100,reputation:40,blueprint:'research-rov',briefing:'Enter Pelagic 05 through its starboard breach. Record your entry, release the archive latch with Cutter, retrieve the cassette with Scanner, and leave through the marked port breach. Bring the record home.',debrief:'The freighter archive contains the monitoring network\'s original deployment log. Selene can trace its survey stations beyond the bay.'},
   { id:'array-repair',title:'Wake the Array',district:'passage',route:'passage',family:'repair',client:'ivo',story:4,prerequisites:['passage-origin'],species:[],photoGoal:0,samples:false,readings:false,recovery:false,repair:true,bonus:800,reputation:35,briefing:'Restore the service cabinet east of the vault. Match each receiver frequency and polarity, test the isolated circuits, then return the commissioning record to Ivo.',debrief:'The array is transmitting again. The restored reference channels can support future expeditions beyond the bay.' },
   { id:'bay-signal',title:'The Lost Signal',district:'bay',route:'reef',family:'survey',client:'mara',story:1,prerequisites:[],species:[],photoGoal:3,samples:true,readings:false,recovery:true,bonus:250,reputation:25,briefing:'Document the reef, then recover the survey launch\'s stranded sensor. Its final transmission points west.',debrief:'The sensor holds three matching pulses from the lagoon. Ivo believes an older monitoring network is still responding.',blueprint:'survey-anchor' },
@@ -45,6 +47,7 @@ export function contractAvailable(contract: ContractDefinition, completed: reado
 export function districtUnlocked(id: DistrictKey, completed: readonly string[]) { const district=DISTRICTS.find(item=>item.id===id);return !!district&&(!district.requires||completed.includes(district.requires)); }
 export function nextStoryContract(completed: readonly string[]) { return [...CONTRACTS].sort((a,b)=>(a.story??Infinity)-(b.story??Infinity)).find(contract=>contract.story&&!completed.includes(contract.id)&&contractAvailable(contract,completed)); }
 export const LANDMARKS = [
+  {id:'observatory',name:'Pelagic Observatory',district:'pelagic' as const,x:225,z:-190,radius:25},
   {id:'freighter',name:'Pelagic 05 freighter',district:'reach' as const,x:-300,z:-170,radius:28},
   { id:'harbor',name:'Research harbor',district:'bay' as const,x:0,z:28,radius:35 },
   { id:'reef',name:'Coral shelf',district:'bay' as const,x:0,z:-86,radius:40 },

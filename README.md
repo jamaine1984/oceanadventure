@@ -4,7 +4,7 @@ A standalone Three.js and Rapier expedition game with a Blender-authored yacht, 
 
 ## Full-Game Expansion
 
-The voyage atlas contains a discovery chart, persistent named waypoints, seventeen selectable contracts, a five-chapter campaign record, three research partners and reputation-based outfitter discounts. Contracts vary between photography, sampling, mapping, recovery, repairs and complete surveys across the bay, lagoon, limestone passage and Wreckward Reach. Exploration outside contracts can follow charted waypoints.
+The voyage atlas contains a discovery chart, persistent named waypoints, eighteen selectable contracts, a six-chapter campaign record, three research partners and reputation-based outfitter discounts. Contracts vary between photography, sampling, mapping, recovery, repairs, remote terminal surveys and complete surveys across the bay, lagoon, limestone passage, Wreckward Reach and Pelagic Observatory. Exploration outside contracts can follow charted waypoints.
 
 The opening expedition and earned reports use an authored radio conversation with questions and persistent decisions. Closing a report does not suppress later earned reports. Supporting harbor NPCs are temporary procedural figures permitted by the user; the existing supplied player remains unchanged. Their named slots support later model replacement.
 
@@ -20,7 +20,9 @@ The underwater Scanner automatically sweeps every seven simulation seconds. Its 
 
 Completing Echoes in the Seagrass unlocks the Manta Dive Drive blueprint: fabricate it for 650 credits at the dockside inventory, enable it while diving and gain forward propulsion below the surface. Its battery consumes power while thrusting, recharges aboard and survives local save/export/import. Reverse, normal swimming and the collision resolver remain available; assist does not use powered thrust.
 
-Archiving The Freighter Archive unlocks the Sentry Research ROV, including existing paid freighter receipts. Fabricate it for 900 credits at the outfitter. From a stopped yacht in open water, Launch ROV enters a remote chase/optical camera with search lights, six animated thrusters and automatic/manual sonar identification. Its 120-meter straight tether has a conservative full-body limit; it is not a simulated wrapping cable. Battery drains while deployed and recharges aboard. Normal recall, reserve recovery and free recovery return helm control without awarding cargo. The manipulator is modeled but remote salvage, photographs and dedicated ROV missions remain future work.
+Archiving The Freighter Archive unlocks the Sentry Research ROV, including existing paid freighter receipts. Fabricate it for 900 credits at the outfitter. From a stopped yacht in open water, Launch ROV enters a remote chase/optical camera with search lights, six animated thrusters and automatic/manual sonar identification. Its 120-meter straight tether has a conservative full-body limit; it is not a simulated wrapping cable. Battery drains while deployed and recharges aboard. Normal recall, reserve recovery and free recovery return helm control without awarding cargo. The manipulator is modeled; remote salvage and photographs remain future work.
+
+The Observatory Record follows the paid freighter chapter and requires an owned Sentry before departure. Enter the Blender-authored monitoring hall through its front service opening. Survey assist approaches the next terminal; optical view, position, facing and stability are required for a two-second reading. Read the chronometer, habitat archive and crew deployment log in order. Each successful write preserves partial progress; scanning alone grants nothing. Recall the ROV and return to harbor for the 1,150-credit report and Selene's closing transmission. The hall has collidable walls, a circular pressure ceiling and three physical status lamps. The supplied diver can explore it, but terminal acquisition requires the ROV.
 
 This is the first full-game foundation, not a completed five-region production release. The larger approved scope and release gates are tracked in [the full-game roadmap](docs/FULL_GAME_ROADMAP.md). Ads remain deferred.
 
@@ -69,6 +71,7 @@ Open `http://localhost:5174/`.
 - `C`: external/optical camera
 - `E`: recall to the vessel
 - Controller sticks/triggers/bumpers and touch movement controls provide equivalent pilot input; boost is unavailable in ROV mode.
+- Observatory: Survey assist approaches the current terminal; C switches to optical view; F or Read terminal acquires its archive. Manual movement/look interrupts acquisition and cancels assist.
 
 ### Environment
 
@@ -108,6 +111,8 @@ npx --yes --package=@playwright/cli playwright-cli -s=story-check close
 To verify the fifth chapter instead, run `scripts/verify-story-browser.cjs` then `scripts/verify-wreckward-browser.cjs` in the same disposable session. It seeds four prerequisite receipts and dive-drive ownership, then earns the freighter mission through controls. It checks failed-save feedback, partial reload, both breaches, drive withdrawal, solid-deck collision, mobile rendering, the 1,100-credit payment and pay-once/reload protection. It does not prove a normally earned five-chapter campaign.
 
 ROV verification uses `verify-story-browser.cjs`, `verify-rov-browser.cjs`, then `verify-rov-touch.cjs` in the same disposable CLI session. Five prerequisite receipts and a 1,100-credit bank are seeded; the scripts then purchase the actual vehicle, test model/storage failures, pilot it, identify contacts, exercise the tether/reserve limits and verify reload. The touch script copies that acquired equipment into an isolated emulated-touch context with a full-charge fixture. It does not establish physical-device performance or a normally earned campaign.
+
+Observatory verification uses `verify-story-browser.cjs`, then `verify-pelagic-browser.cjs` in an isolated CLI session. Five prerequisite receipts and ROV ownership are seeded, with zero credits and no observatory archives. Actual controls earn three readings, retry failed storage, resume a partial checkpoint and earn the 1,150-credit harbor receipt. `verify-pelagic-touch.cjs` uses separate terminal fixtures to check real emulated-touch taps, interrupted acquisition and non-overlapping controls at three compact sizes. `verify-pelagic-withdrawal.cjs` checks the supplied diver's physical entry and vessel return without remote records; `verify-pelagic-equipment-gate.cjs` verifies that unowned equipment cannot trigger automatic chapter departure. These are focused checks, not a normally earned six-chapter or full release gate.
 
 ## Work From Another Computer
 

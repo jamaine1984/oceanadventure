@@ -10,13 +10,13 @@ No feature is complete merely because it has a menu, a catalog entry or a passin
 
 | Recommendation | Implementation status |
 | --- | --- |
-| Five distinct ocean regions | Bay, lagoon and passage retained; Wreckward Reach has a verified new mission; observatory pending |
+| Five distinct ocean regions | Bay, lagoon and passage retained; Wreckward Reach and Pelagic Observatory have authored playable missions; full regional polish and release QA pending |
 | Discovery map | Implemented first-bay chart, proximity discoveries, editable pins and physical navigation; larger regional chart pending |
-| Connected campaign | Implemented five linked contract definitions, opening/earned radio conversations and archived debriefs; campaign-wide authored expansion pending |
-| Selectable contract board | Implemented seventeen contracts across four districts; full campaign catalog pending |
-| Enterable underwater landmarks | Existing limestone vault retained; collidable freighter cargo interior and two-breach traversal verified; observatory pending |
+| Connected campaign | Implemented six linked contract definitions, opening/earned radio conversations and archived debriefs; long-campaign playtesting and expansion pending |
+| Selectable contract board | Implemented eighteen contracts across five districts; wider campaign catalog pending |
+| Enterable underwater landmarks | Limestone vault, two-breach freighter cargo interior and flooded observatory hall implemented; broader interior dressing pending |
 | Wildlife behavior and photography depth | Existing seven species retained; habitat expansion and behavior records pending |
-| Capability-unlocking tools | Sonar, blueprint-unlocked Manta dive drive and Sentry ROV scout implemented; dedicated ROV recovery missions and broader tools pending |
+| Capability-unlocking tools | Sonar, blueprint-unlocked Manta dive drive, Sentry ROV and dedicated remote terminal mission implemented; remote salvage and broader tools pending |
 | Distinct boats and useful deck facilities | Existing two supplied vessels retained; fleet expansion pending Blender authoring |
 | Research outposts | Pending authored station modules and placement/recovery rules |
 | Salvage and blueprint progression | Earned blueprint rewards and credit-based dive-drive fabrication implemented; salvage materials and wider crafting pending |
@@ -42,9 +42,9 @@ The October 7 approval covers all nine production recommendations, not just the 
 
 | Approved area | Current state |
 | --- | --- |
-| Authored campaign | Five linked chapters; opening, earned revelations and archived reports implemented; larger regional story still pending |
-| Five playable regions | Three existing districts retained; Wreckward Reach mission verified; Pelagic Observatory remains a visual target |
-| Distinct mission mechanics | Surveys/recovery/transects, circuit commissioning, ordered freighter recovery and ROV scouting implemented; remote salvage/ROV missions pending |
+| Authored campaign | Six linked chapters; opening, earned revelations and closing observatory report implemented; longer campaign still pending |
+| Five playable regions | Three existing districts retained; Wreckward Reach and Pelagic Observatory authored; full-campaign/device assessment pending |
+| Distinct mission mechanics | Surveys/recovery/transects, circuit commissioning, ordered freighter recovery and ROV terminal acquisition implemented; remote salvage pending |
 | NPC storytelling | Radio questions, saved decisions and three temporary procedural supporting NPCs; final supplied NPC GLBs and broader chains pending |
 | Earned progression | Existing boats/upgrades/blueprints/dive drive retained; materials, outposts and broader capability economy pending |
 | Consequential environment | Existing sea states retained; schedules, currents, forecast and day/night pending |
@@ -97,6 +97,20 @@ Launch from a stopped yacht in open water enters remote pilot mode while the sha
 All 114 focused Node checks pass, including actual GLB geometry/radius/batches/anchors, native collision, legacy sweep, ownership/future-version/recovery guards, failed transaction preservation, battery/depth bounds and recovery cleanup. The final build/package passes at 26 files / 49.84 MB. The selected existing browser suite passes 20/20 after correcting a duplicate diver-panel CSS identity without weakening its assertions. The pause panel now scrolls within small viewports, making free recovery reachable.
 
 The exact final-code isolated CLI walkthrough seeds five prerequisite receipts and 1,100 credits, then verifies model-load failure, storage failure, actual fabrication for 900, disabled duplicate purchase, sailing/deployment, thrust/depth controls, full turn, stationary yacht, both camera views, manual/automatic sonar, pause freeze, tether travel at 118.88 meters, immediate recall, no manufactured cargo, reload retention and reserve recovery. All four viewport pixel/bounds checks pass. Emulated touch uses a separate context copied from that acquired equipment with a full-charge fixture; held depth, lamp/sonar taps, recall and emergency recovery pass at portrait, landscape and 320-pixel widths. These are not an earned five-chapter campaign, physical-device test, sustained-FPS or full-release gate. Evidence: `rov-browser-final.log`, `rov-touch-final.log`, `rov-unit-final.log`, `rov-build-final.log`, and `rov-regression-final.log` under `output/playwright`. Production remains HOLD; observatory, ROV salvage missions, crafting/outposts, consequential weather, endgame and release gates remain open.
+
+## October 8 Pelagic Observatory Delivery
+
+The approved `pelagic-observatory.png` reference was inspected before authoring the 212,260-byte monitoring hall in Blender through the verified portable fallback. Source is preserved in `assets/blender/pelagic_observatory.blend` and `scripts/build_pelagic_observatory.py`. The streamed hall includes a service platform, support legs, glazed upper dome, receiver towers, three archive consoles and status lamps. Its lower pressure ceiling and floor use circular native Rapier cylinders, not invisible square slabs; wall proxies are conservative world bounds. The upper dome is a non-traversable utility loft. The model is a gameplay interpretation, not an exact concept replica or final AAA art.
+
+The sixth chapter, The Observatory Record, follows the paid freighter receipt and requires owned Sentry equipment. The board and automatic next-departure path block missing ownership without discarding the previous paid receipt. Survey assist rounds exterior walls and enters the south service opening. Optical view, actual terminal position, facing and low speed are required for a two-second acquisition; manual motion/look cancels it. Chronometer, habitat archive and crew log are recovered in order. Each archive is cloned and saved before live mutation; failures leave the bank and records unchanged. The 1,150-credit reward and Selene's closing report require the saved harbor sale. Scanning and ordinary diving award no terminal records.
+
+Five districts and eighteen contracts now contain six connected chapter definitions. Partial observatory reload places the boat outside the hall, not the player inside it. The existing supplied GLB diver remains unchanged and can physically explore the hall; withdrawal clears the entrance before returning to the real vessel. The ROV still recalls instantly and uses a straight visual tether, not wrapping cable physics or physical return travel.
+
+The observatory reuses the existing marine-metal image with restrained 18-percent paint wear, adding no bitmap download or duplicate GPU texture. Redundant ROV bevel subdivisions were removed without changing its dimensions, anchors or rotor count: its GLB is now 377,540 bytes. The package remains below the unchanged 50 MiB gate; this is not proof of faster startup or sustained performance. Portrait tool clearance measures the action dock and wrapped HUD, active ROV feedback stays inside its scroll panel, and terminal buttons retain 44-pixel height across compact layouts.
+
+Focused evidence in `output/playwright`: `pelagic-browser-published.log` records real mission controls, failed-save retry, partial reload, wrong-facing rejection, three records, four nonblank viewport checks, the 1,150-credit harbor payment and reload/pay-once protection. This core replay preceded the UI-only and diver-specific refinements; subsequent scoped checks cover those changes. Five prior receipts and ROV ownership are fixtures, not normally earned campaign proof. `pelagic-touch-published.log` records three isolated emulated-touch terminal fixtures, actual taps, movement interruption, non-overlap and zero payment. `pelagic-withdrawal-published.log` records actual supplied-player entry and physical portal/vessel return; `pelagic-equipment-gate.log` records missing-equipment departure protection. These checks do not certify six-hour campaign length, physical devices, hosted embeds or asset rights.
+
+The same critic retains visuals at 7.6/10, gameplay provisional and production HOLD. Sparse hall dressing, plain terminal faces and softer close-up detail remain below the image target. Next implementation priorities are material salvage/crafting and useful outposts, followed by consequential weather/time, wildlife/endgame, sustained optimization, normal-play campaign assessment and the remaining release gates. Ads remain deferred.
 
 ## First Foundation Verification
 

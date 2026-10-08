@@ -1,6 +1,7 @@
 import { contractById } from './voyage-catalog';
 import { ARRAY_SITE } from './array-repair';
 import { REACH_SITE, FREIGHTER_STEPS, orderedFreighterSteps } from './wreckward';
+import {PELAGIC_SITE,orderedPelagicRecords} from './pelagic';
 
 export const SPECIES = {
   butterflyfish: { name: 'Threadfin butterflyfish', note: 'Pairs shelter beside branching coral.' },
@@ -12,10 +13,10 @@ export const SPECIES = {
   hammerhead: { name: 'Scalloped hammerhead', note: 'An occasional visitor to the deeper channel.' },
 } as const;
 export type SpeciesKey = keyof typeof SPECIES;
-export type ExpeditionStage = 'briefing' | 'reef' | 'wreck' | 'transect' | 'repair' | 'interior' | 'return' | 'complete';
+export type ExpeditionStage = 'briefing' | 'reef' | 'wreck' | 'transect' | 'repair' | 'interior' | 'remote' | 'return' | 'complete';
 export type DiveTool = 'camera' | 'sampler' | 'cutter' | 'scanner';
 export type ExpeditionRecord = {
-  version: 2 | 3; run: number; route: 'reef' | 'lagoon' | 'passage' | 'reach'; stage: ExpeditionStage;
+  version: 2 | 3; run: number; route: 'reef' | 'lagoon' | 'passage' | 'reach' | 'pelagic'; stage: ExpeditionStage;
   transectReadings: number[];
   photos: SpeciesKey[]; waterSample: boolean; sedimentSample: boolean;
   cableFreed: boolean; sensorRecovered: boolean; sold: boolean;
@@ -27,6 +28,7 @@ export type ExpeditionRecord = {
   contractId?: string;
   arrayRestored?: boolean;
   interiorSteps?:number[];
+  observatoryRecords?:number[];
 };
 export const REEF_SITE = { x: 0, z: -86 };
 export const WRECK_SITE = { x: 94, z: -168 };
@@ -59,6 +61,7 @@ export const PASSAGE_STATIONS = [
   { x: 166, y: -19, z: -152, name: 'North exit', reading: 'Outer sand slope · open water' },
 ] as const;
 function baseExpeditionPlan(record: Pick<ExpeditionRecord, 'route'>) {
+  if(record.route==='pelagic')return{title:'Pelagic Observatory',habitat:'Pelagic Observatory',site:PELAGIC_SITE,samples:SAMPLE_SITES,photoGoal:0,requiredSpecies:[] as readonly SpeciesKey[],secondSite:PELAGIC_SITE,recoveryTitle:'Observatory terminals',stations:[],readingCredits:0,completionBonus:1150};
   if(record.route==='reach')return{title:'Wreckward Reach',habitat:'Pelagic 05',site:REACH_SITE,samples:SAMPLE_SITES,photoGoal:0,requiredSpecies:[] as readonly SpeciesKey[],secondSite:REACH_SITE,recoveryTitle:'Freighter archive',stations:[],readingCredits:0,completionBonus:1100};
   return record.route === 'passage' ? {
     title: 'Limestone Passage', habitat: 'Coral garden', site: GARDEN_SITE, samples: PASSAGE_SAMPLES,
@@ -76,25 +79,25 @@ function baseExpeditionPlan(record: Pick<ExpeditionRecord, 'route'>) {
 }
 export function expeditionPlan(record: Pick<ExpeditionRecord, 'route' | 'contractId'>) {
   const base=baseExpeditionPlan(record),contract=contractById(record.contractId);
-  if(!contract||contract.route!==record.route)return {...base,samplesRequired:true,recoveryRequired:true,repairRequired:false,interiorRequired:false};
+  if(!contract||contract.route!==record.route)return {...base,samplesRequired:true,recoveryRequired:true,repairRequired:false,interiorRequired:false,remoteRequired:false};
   return {...base,title:contract.title,photoGoal:contract.photoGoal,requiredSpecies:contract.species as readonly SpeciesKey[],
-    stations:contract.readings?base.stations:[],samplesRequired:contract.samples,recoveryRequired:contract.recovery||contract.readings,repairRequired:contract.repair===true,interiorRequired:contract.interior===true,completionBonus:contract.bonus,
+    stations:contract.readings?base.stations:[],samplesRequired:contract.samples,recoveryRequired:contract.recovery||contract.readings,repairRequired:contract.repair===true,interiorRequired:contract.interior===true,remoteRequired:contract.remote===true,completionBonus:contract.bonus,
     secondSite:contract.repair?ARRAY_SITE:base.secondSite,recoveryTitle:contract.repair?'Array service station':base.recoveryTitle};
 }
 export function newContractExpedition(id:string,run=1): ExpeditionRecord {
   const contract=contractById(id);if(!contract)throw new Error('Unknown expedition contract.');
-  return {...newExpedition(run),route:contract.route,contractId:contract.id,...contract.interior?{interiorSteps:[]}:{} };
+  return {...newExpedition(run),route:contract.route,contractId:contract.id,...contract.interior?{interiorSteps:[]}:{} ,...contract.remote?{observatoryRecords:[]}:{} };
 }
 export function objectiveCount(record: ExpeditionRecord) {
   const plan=expeditionPlan(record);
-  return plan.photoGoal+(plan.samplesRequired?2:0)+(plan.recoveryRequired?(plan.stations.length||2):0)+(plan.repairRequired?1:0)+(plan.interiorRequired?FREIGHTER_STEPS.length:0)+1;
+  return plan.photoGoal+(plan.samplesRequired?2:0)+(plan.recoveryRequired?(plan.stations.length||2):0)+(plan.repairRequired?1:0)+(plan.interiorRequired?FREIGHTER_STEPS.length:0)+(plan.remoteRequired?3:0)+1;
 }
 export function surveyPhotoCount(record: ExpeditionRecord) {
   const plan = expeditionPlan(record);
   return plan.requiredSpecies.length ? plan.requiredSpecies.filter(key => record.photos.includes(key)).length : Math.min(plan.photoGoal, record.photos.length);
 }
 export function recoveryComplete(record: ExpeditionRecord) {
-  const plan=expeditionPlan(record);if(plan.interiorRequired)return orderedFreighterSteps(record.interiorSteps).length===FREIGHTER_STEPS.length;if(plan.repairRequired)return record.arrayRestored===true;if(!plan.recoveryRequired)return true;
+  const plan=expeditionPlan(record);if(plan.remoteRequired)return orderedPelagicRecords(record.observatoryRecords).length===3;if(plan.interiorRequired)return orderedFreighterSteps(record.interiorSteps).length===FREIGHTER_STEPS.length;if(plan.repairRequired)return record.arrayRestored===true;if(!plan.recoveryRequired)return true;
   const stations = plan.stations;
   return stations.length ? stations.every((_, index) => record.transectReadings.includes(index)) : record.cableFreed && record.sensorRecovered;
 }
@@ -133,13 +136,14 @@ export function newExpedition(run = 1): ExpeditionRecord {
 export function sanitizeExpedition(value: unknown): ExpeditionRecord {
   const item = value as Partial<ExpeditionRecord> | undefined;
   if (!item || item.version !== 2&&item.version!==3) return newExpedition();
-  const stages: ExpeditionStage[] = ['briefing', 'reef', 'wreck', 'transect', 'repair', 'interior', 'return', 'complete'];
+  const stages: ExpeditionStage[] = ['briefing', 'reef', 'wreck', 'transect', 'repair', 'interior', 'remote', 'return', 'complete'];
   const record = newExpedition(Number.isFinite(Number(item.run))?Math.max(1, Math.min(1000000000,Math.floor(Number(item.run)||1))):1);
   // Old saves, including later surveys, keep their original reef contract.
-  record.route = item.route === 'lagoon' || item.route === 'passage' || item.route==='reach' ? item.route : 'reef';
+  record.route = item.route === 'lagoon' || item.route === 'passage' || item.route==='reach' || item.route==='pelagic' ? item.route : 'reef';
   const contract=contractById(item.contractId);if(contract?.route===record.route)record.contractId=contract.id;
   if(contract?.repair)record.arrayRestored=item.arrayRestored===true;
   if(contract?.interior)record.interiorSteps=orderedFreighterSteps(item.interiorSteps);
+  if(contract?.remote)record.observatoryRecords=orderedPelagicRecords(item.observatoryRecords);
   record.transectReadings = record.route !== 'reef' && Array.isArray(item.transectReadings) ? [...new Set(item.transectReadings.filter(index => Number.isInteger(index) && index >= 0 && index < 3))] : [];
   if (record.route === 'passage') {
     const savedReadings = record.transectReadings;
@@ -156,7 +160,7 @@ export function sanitizeExpedition(value: unknown): ExpeditionRecord {
   record.sold = record.sold && reefComplete(record) && recoveryComplete(record);
   if (record.sold) record.stage = 'complete';
   else if (recoveryComplete(record) && reefComplete(record)) record.stage = 'return';
-  else if (reefComplete(record)&&(!(expeditionPlan(record).repairRequired||expeditionPlan(record).interiorRequired)||record.stage!=='briefing')) record.stage = expeditionPlan(record).interiorRequired?'interior':expeditionPlan(record).repairRequired?'repair':record.route!=='reef'?'transect':'wreck';
+  else if (reefComplete(record)&&(!(expeditionPlan(record).repairRequired||expeditionPlan(record).interiorRequired||expeditionPlan(record).remoteRequired)||record.stage!=='briefing')) record.stage = expeditionPlan(record).remoteRequired?'remote':expeditionPlan(record).interiorRequired?'interior':expeditionPlan(record).repairRequired?'repair':record.route!=='reef'?'transect':'wreck';
   else if (record.stage !== 'briefing') record.stage = 'reef';
   if((record.checkpoint==='wreck'||record.checkpoint==='transect')&&!reefComplete(record))record.checkpoint=record.stage==='briefing'?'harbor':'reef';
   if (record.sold) {
@@ -177,5 +181,5 @@ export function expeditionReward(record: ExpeditionRecord) {
 }
 export function completedObjectives(record: ExpeditionRecord) {
   const plan=expeditionPlan(record);
-  return surveyPhotoCount(record)+(plan.samplesRequired?Number(record.waterSample)+Number(record.sedimentSample):0)+(plan.recoveryRequired?(plan.stations.length?record.transectReadings.length:Number(record.cableFreed)+Number(record.sensorRecovered)):0)+(plan.repairRequired?Number(record.arrayRestored===true):0)+(plan.interiorRequired?orderedFreighterSteps(record.interiorSteps).length:0)+Number(record.sold);
+  return surveyPhotoCount(record)+(plan.samplesRequired?Number(record.waterSample)+Number(record.sedimentSample):0)+(plan.recoveryRequired?(plan.stations.length?record.transectReadings.length:Number(record.cableFreed)+Number(record.sensorRecovered)):0)+(plan.repairRequired?Number(record.arrayRestored===true):0)+(plan.interiorRequired?orderedFreighterSteps(record.interiorSteps).length:0)+(plan.remoteRequired?orderedPelagicRecords(record.observatoryRecords).length:0)+Number(record.sold);
 }

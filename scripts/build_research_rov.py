@@ -31,7 +31,7 @@ def box(name,pos,size,mat,bevel=.02):
     bpy.ops.mesh.primitive_cube_add(size=1,location=pos)
     o=link(bpy.context.object,name,mat);o.scale=size
     bpy.ops.object.transform_apply(location=False,rotation=False,scale=True)
-    b=o.modifiers.new('Machined edge','BEVEL');b.width=bevel;b.segments=2
+    b=o.modifiers.new('Machined edge','BEVEL');b.width=bevel;b.segments=1
     return o
 def cylinder(name,pos,radius,depth,mat,horizontal=False,segments=20):
     bpy.ops.mesh.primitive_cylinder_add(vertices=segments,radius=radius,depth=depth,location=pos)

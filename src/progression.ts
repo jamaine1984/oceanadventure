@@ -94,7 +94,7 @@ export function normalizeProgress(value: unknown): PlayerProgress {
     for(const [record,allowed] of [[parsed.story,[1]],[parsed.voyage,[1]],[parsed.expedition,[2,3]],[parsed.rov,[1]]] as const){
       if(record?.version!==undefined&&!(allowed as readonly number[]).includes(record.version))throw new ProgressLoadError('This voyage contains an unsupported record version. Keep the save and update the game.');
     }
-    if(parsed.expedition?.version===3&&typeof parsed.expedition.route==='string'&&parsed.expedition.route.trim()&&!['reef','lagoon','passage','reach'].includes(parsed.expedition.route))throw new ProgressLoadError('This route needs a different game version. Keep the save and update the game.');
+    if(parsed.expedition?.version===3&&typeof parsed.expedition.route==='string'&&parsed.expedition.route.trim()&&!['reef','lagoon','passage','reach','pelagic'].includes(parsed.expedition.route))throw new ProgressLoadError('This route needs a different game version. Keep the save and update the game.');
     if(parsed.saveVersion===3&&!Object.hasOwn(parsed,'rov'))throw new Error('The current voyage is missing its equipment record.');
     if(parsed.story&&parsed.story.version===undefined)throw new Error('The story record is incomplete.');
     if(Object.hasOwn(parsed,'rov')&&(!parsed.rov||typeof parsed.rov!=='object'||Array.isArray(parsed.rov)))throw new Error('The ROV record is incomplete.');
@@ -106,6 +106,7 @@ export function normalizeProgress(value: unknown): PlayerProgress {
       if(typeof parsed.expedition.route!=='string'||!parsed.expedition.route.trim())throw new Error('The expedition route is incomplete.');
     }
     if(parsed.expedition?.route==='reach'&&(parsed.expedition.contractId!=='reach-archive'||!Array.isArray(parsed.expedition.interiorSteps)))throw new Error('The freighter record is incomplete.');
+    if(parsed.expedition?.route==='pelagic'&&(parsed.expedition.contractId!=='pelagic-record'||!Array.isArray(parsed.expedition.observatoryRecords)))throw new Error('The observatory record is incomplete.');
     if(!Number.isFinite(parsed.credits)||parsed.credits<0||!Array.isArray(parsed.ownedBoats))throw new Error('The voyage is missing its saved balance or fleet.');
     if(parsed.saveVersion===2||parsed.saveVersion===3){
       const record=parsed.expedition,voyage=parsed.voyage;

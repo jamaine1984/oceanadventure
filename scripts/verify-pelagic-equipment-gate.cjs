@@ -1,0 +1,10 @@
+// Post-mission disposable fixture: never use the playing browser's save.
+async page=>{
+  const original=await page.evaluate(()=>localStorage.getItem('ocean-adventure-progress-v1'));
+  try{
+    await page.setViewportSize({width:1280,height:720});await page.evaluate(()=>{const p=JSON.parse(localStorage.getItem('ocean-adventure-progress-v1'));p.rov.owned=false;p.voyage.completed=p.voyage.completed.filter(id=>id!=='pelagic-record');delete p.voyage.completions['pelagic-record'];Object.assign(p.expedition,{route:'reach',contractId:'reach-archive',stage:'complete',checkpoint:'harbor',sold:true,interiorSteps:[0,1,2,3],saleCredits:1100});delete p.expedition.observatoryRecords;localStorage.setItem('ocean-adventure-progress-v1',JSON.stringify(p));});
+    await page.reload();await page.locator('[data-loading]').waitFor({state:'hidden',timeout:90000});await page.getByRole('button',{name:'Open voyage atlas',exact:true}).click();await page.getByRole('button',{name:'Contracts',exact:true}).click();await page.getByRole('button',{name:'Pelagic Observatory',exact:true}).click();
+    const accept=page.locator('[data-accept-contract="pelagic-record"]');if(await accept.isEnabled()||await accept.innerText()!=='Sentry ROV required')throw Error('Unowned ROV can accept remote chapter');await page.keyboard.press('Escape');await page.getByRole('button',{name:'Harbor',exact:true}).click();await page.locator('[data-next-expedition]').click();await page.locator('.inventory').waitFor({state:'visible',timeout:5000});
+    const p=await page.evaluate(()=>JSON.parse(localStorage.getItem('ocean-adventure-progress-v1')));if(p.expedition.contractId!=='reach-archive'||!p.expedition.sold||p.rov.owned)throw Error('Automatic departure discarded receipt or granted equipment');return{missingEquipmentBlocksAcceptance:true,automaticDepartureKeepsReceipt:true};
+  }finally{await page.evaluate(value=>localStorage.setItem('ocean-adventure-progress-v1',value),original);await page.reload();await page.locator('[data-loading]').waitFor({state:'hidden',timeout:90000});}
+}

@@ -5,6 +5,7 @@ export type StoryContext = { expeditions: number; expedition: ExpeditionRecord; 
 export type StoryChoice = { id: string; label: string; reply?: string; depart?: boolean };
 export type StoryScene = { id: string; speaker: Speaker; title: string; text: string; choices: StoryChoice[] };
 export const STORY_SCENES: readonly StoryScene[] = [
+  {id:'observatory-report',speaker:'selene',title:'The living network',text:'The crew evacuated safely. Their last log left the array listening to the habitat, not waiting for a rescue. We have recovered its clock, its research history and the original deployment record. The Silent Array expedition is archived.',choices:[{id:'continue',label:'Archive the observatory report'}]},
   {id:'freighter-report',speaker:'selene',title:'Beyond the bay',text:'The archive is intact. Its deployment log lists a crewed observatory beyond the first survey districts. We have the first reliable record of where this network began.',choices:[{id:'continue',label:'Archive the deployment log'}]},
   {id:'restoration-report',speaker:'ivo',title:'The array wakes',text:'The commissioning record is archived. Three reference channels are transmitting again. The bay has a reliable network, and we have a safe starting point for the next expedition.',choices:[{id:'continue',label:'Archive the commissioning report'}]},
   {id:'welcome',speaker:'mara',title:'The Lost Signal',text:'The launch went silent. Its last transmission came from the reef. We need to find out why.',choices:[{id:'signal',label:'Ask about the signal',reply:'Three short pulses, then silence. Photograph the reef and collect the two marked samples before recovering the launch recorder. Selene needs the habitat record; Ivo needs the recorder intact.'},{id:'depart',label:'Accept expedition',depart:true}]},
@@ -39,6 +40,7 @@ export function storyAvailable(context:StoryContext,id:string):boolean {
   if(id==='array-report')return c.includes('passage-origin');
   if(id==='restoration-report')return c.includes('array-repair');
   if(id==='freighter-report')return c.includes('reach-archive');
+  if(id==='observatory-report')return c.includes('pelagic-record');
   return false;
 }
 export function nextStoryScene(context:StoryContext,excluded:readonly string[]=[]) {

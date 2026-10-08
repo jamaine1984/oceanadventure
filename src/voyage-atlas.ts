@@ -83,11 +83,12 @@ export class VoyageAtlas {
       const article=element('article',undefined,'atlas__contract'),head=element('div',undefined,'atlas__contract-head');
       head.append(element('span',contract.story?`Campaign ${contract.story}/${CONTRACTS.filter(item=>item.story).length}`:contract.family),element('span',`${CLIENTS[contract.client].name} / +${contractReputationReward(contract,state.completed)} reputation`));
       article.append(head,element('h3',contract.title),element('p',contract.briefing));
-      const objectives=[contract.photoGoal?`${contract.photoGoal} photographs`:null,contract.samples?'2 samples':null,contract.readings?'3 readings':null,contract.recovery?'Sensor recovery':null,contract.repair?'3 isolated circuits':null,contract.interior?'Freighter entry, latch, cassette and separate exit':null].filter(Boolean);
+      const objectives=[contract.photoGoal?`${contract.photoGoal} photographs`:null,contract.samples?'2 samples':null,contract.readings?'3 readings':null,contract.recovery?'Sensor recovery':null,contract.repair?'3 isolated circuits':null,contract.interior?'Freighter entry, latch, cassette and separate exit':null,contract.remote?'ROV / 3 terminal archives':null].filter(Boolean);
       article.append(element('small',objectives.join(' / ')));
       const completed=state.completions[contract.id]??0,active=progress.expedition.contractId===contract.id&&!progress.expedition.sold,available=contractAvailable(contract,state.completed);
       const action=this.button(active?'Active expedition':!available?'Locked':completed?`Repeat / ${completed} completed`:'Accept contract',()=>{void this.accept(contract.id);},Compass);action.dataset.acceptContract=contract.id;
-      action.disabled=this.busy||active||!available||!this.canDepart()||!progress.expedition.sold&&progress.expedition.stage!=='briefing';
+      if(contract.remote&&!progress.rov?.owned)action.textContent='Sentry ROV required';
+      action.disabled=this.busy||active||!available||!!contract.remote&&!progress.rov?.owned||!this.canDepart()||!progress.expedition.sold&&progress.expedition.stage!=='briefing';
       article.append(action);list.append(article);
     }
     this.contents.append(list);if(!this.canDepart())this.contents.append(element('p','Contracts can be accepted at the research harbor.','atlas__locked'));else if(!progress.expedition.sold&&progress.expedition.stage!=='briefing')this.contents.append(element('p','Finish and sell your active expedition before accepting another.','atlas__locked'));

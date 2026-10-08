@@ -107,6 +107,7 @@ export class Inventory {
       if(plan.samplesRequired){row('Water sample', r.waterSample ? '1 sealed sample · 150 credits' : 'Not collected', FlaskConical);row('Sediment sample', r.sedimentSample ? '1 sealed sample · 200 credits' : 'Not collected', FlaskConical);}
       if(plan.recoveryRequired){if(plan.stations.length)row(plan.recoveryTitle, `${r.transectReadings.length}/${plan.stations.length} readings · ${r.transectReadings.length*plan.readingCredits} credits`, BookOpen);else row('Research sensor', r.sensorRecovered ? '1 recovered instrument · 550 credits' : 'Not recovered', Package);}
       if(plan.interiorRequired)row('Pelagic 05 expedition archive',`${(r.interiorSteps??[]).length}/4 field records / ${(r.interiorSteps??[]).length>=3?'Cassette secured':'Cassette not recovered'}`,Package);
+      if(plan.remoteRequired)row('Observatory terminal archive',`${(r.observatoryRecords??[]).length}/3 datasets / harbor payment pending`,BookOpen);
       if(plan.repairRequired)row('Array commissioning record',r.arrayRestored?'Feed restored / harbor payment pending':'Not commissioned',BookOpen);
       if (r.sold) {
         row('Research payment', `${r.saleCredits} credits paid · Survey ${r.run}`, BookOpen);

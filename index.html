@@ -101,6 +101,8 @@
         <div class="dive-tools__equipment"><span>Battery</span><meter data-rov-meter min="0" max="100" value="100" aria-label="Research ROV battery"></meter><span data-rov-battery>100%</span></div>
         <div class="rov-tools__commands"><button type="button" data-rov-pulse title="Pulse ROV sonar" aria-label="Pulse ROV sonar"><i data-lucide="radar" aria-hidden="true"></i></button><button type="button" data-rov-light title="Search lights" aria-label="Search lights" aria-pressed="true"><i data-lucide="power" aria-hidden="true"></i></button><span data-rov-sweep>Last sweep 0 s / 0 contacts</span></div>
         <ul data-rov-contacts aria-label="ROV sonar contacts"></ul>
+        <button type="button" data-rov-acquire hidden>Read terminal</button>
+        <progress data-rov-reading max="2" value="0" aria-label="Terminal acquisition" hidden></progress>
       </section>
       <div class="navigation-guide" data-navigation-guide><span data-nav-bearing>Research harbor</span><small data-nav-help>W/S throttle · A/D steer · E dive · C camera · J journal</small></div>
       <section class="journal" data-journal aria-labelledby="journal-title" aria-hidden="true">
