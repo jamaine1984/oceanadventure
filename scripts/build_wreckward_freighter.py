@@ -18,18 +18,39 @@ def material(name, color, metal=0, rough=.7, wear=False, glow=0):
     p.inputs['Metallic'].default_value = metal
     p.inputs['Roughness'].default_value = rough
     if wear:
-        v = m.node_tree.nodes.new('ShaderNodeVertexColor')
-        v.layer_name = 'Corrosion'
         geometry=m.node_tree.nodes.new('ShaderNodeNewGeometry')
         grain=m.node_tree.nodes.new('ShaderNodeTexNoise')
-        grain.inputs['Scale'].default_value=28
+        grain.inputs['Scale'].default_value=2.8
+        grain.inputs['Detail'].default_value=4
+        grain.inputs['Roughness'].default_value=.78
         m.node_tree.links.new(geometry.outputs['Position'],grain.inputs['Vector'])
-        multiply=m.node_tree.nodes.new('ShaderNodeMixRGB')
-        multiply.blend_type='MULTIPLY'
-        multiply.inputs[0].default_value=.32
-        m.node_tree.links.new(v.outputs['Color'],multiply.inputs[1])
-        m.node_tree.links.new(grain.outputs['Fac'],multiply.inputs[2])
-        m.node_tree.links.new(multiply.outputs[0],p.inputs['Base Color'])
+        ramp=m.node_tree.nodes.new('ShaderNodeValToRGB')
+        colors=[(.23,tuple(c*.68 for c in color)),(.43,color),(.56,color),(.62,(.095,.065,.035)),(.70,(.36,.12,.034)),(.83,(.58,.31,.13))]
+        if metal==0:
+            colors=[(.23,(.075,.11,.10)),(.43,color),(.55,(.22,.28,.20)),(.64,(.48,.49,.38)),(.76,(.61,.64,.52))]
+        ramp.color_ramp.elements.remove(ramp.color_ramp.elements[1])
+        for index,(position,rgb) in enumerate(colors):
+            element=ramp.color_ramp.elements[0] if index==0 else ramp.color_ramp.elements.new(position)
+            element.position,element.color=position,(*rgb,1)
+        if metal:
+            split=m.node_tree.nodes.new('ShaderNodeSeparateXYZ')
+            m.node_tree.links.new(geometry.outputs['Position'],split.inputs[0])
+            spacing=m.node_tree.nodes.new('ShaderNodeMath')
+            spacing.operation='PINGPONG';spacing.inputs[1].default_value=2
+            m.node_tree.links.new(split.outputs['Y'],spacing.inputs[0])
+            seam=m.node_tree.nodes.new('ShaderNodeMath')
+            seam.operation='LESS_THAN';seam.inputs[1].default_value=.09
+            m.node_tree.links.new(spacing.outputs[0],seam.inputs[0])
+            strength=m.node_tree.nodes.new('ShaderNodeMath')
+            strength.operation='MULTIPLY';strength.inputs[1].default_value=.17
+            m.node_tree.links.new(seam.outputs[0],strength.inputs[0])
+            wear=m.node_tree.nodes.new('ShaderNodeMath');wear.operation='ADD'
+            m.node_tree.links.new(grain.outputs['Fac'],wear.inputs[0])
+            m.node_tree.links.new(strength.outputs[0],wear.inputs[1])
+            m.node_tree.links.new(wear.outputs[0],ramp.inputs['Fac'])
+        else:
+            m.node_tree.links.new(grain.outputs['Fac'],ramp.inputs['Fac'])
+        m.node_tree.links.new(ramp.outputs['Color'],p.inputs['Base Color'])
     if glow:
         p.inputs['Emission Color'].default_value = (*color,1)
         p.inputs['Emission Strength'].default_value = glow
@@ -58,13 +79,13 @@ def box(name,pos,size,mat,bevel=.025):
     o.scale = size
     bpy.ops.object.transform_apply(location=False,rotation=False,scale=True)
     b = o.modifiers.new('Worn machined edge','BEVEL')
-    b.width,b.segments = bevel,2
+    b.width,b.segments = bevel,1
     return o
 
 def pipe(name,points,radius,mat):
     c = bpy.data.curves.new(name,'CURVE')
     c.dimensions = '3D'
-    c.bevel_depth,c.bevel_resolution = radius,2
+    c.bevel_depth,c.bevel_resolution = radius,1
     s = c.splines.new('POLY')
     s.points.add(len(points)-1)
     for point,position in zip(s.points,points): point.co = (*position,1)
@@ -84,7 +105,8 @@ def mesh(name,vertices,faces,mat):
 
 def text(body,pos,size,rotation=(math.pi/2,0,0)):
     c = bpy.data.curves.new(body,'FONT')
-    c.body,c.size,c.extrude = body,size,.001
+    c.body,c.size,c.extrude = body,size,0
+    c.resolution_u=2
     o = bpy.data.objects.new(body,c)
     collection.objects.link(o)
     c.materials.append(marking)
@@ -93,9 +115,9 @@ def text(body,pos,size,rotation=(math.pi/2,0,0)):
 def halfbeam(y):
     return 4.1 * min(1,max(.18,(20-abs(y))/5))
 
-# Curved plating is tessellated for spatially varied corrosion without runtime textures.
+# Curved plating retains the wide breach silhouette; wear is baked below.
 for side in [-1,1]:
-    rows,levels = 100,14
+    rows,levels = 80,12
     verts,faces = [],[]
     for row in range(rows+1):
         y = -18+row*36/rows
@@ -154,14 +176,38 @@ for x in [-3.2,3.2]:
     pipe('Cargo service conduit',[(x,-15,4.24),(x,0,4.24),(x,15,4.24)],.045,rubber)
 
 # The cargo corridor remains clear between the two torn side entrances.
-for x,y in [(2.65,5),(2.5,-7),(-2.55,-10),(-2.6,10)]:
+for index,(x,y) in enumerate([(2.65,5),(2.5,-7),(-2.55,-10),(-2.6,10)]):
     box('Sealed cargo case',(x,y,1.6),(1.45,1.7,1.1),steel,.06)
     for z in [1.18,2.02]: box('Case binding',(x,y,z),(1.48,1.74,.04),brass,.008)
     box('Case identification plate',(x,y-.86,1.62),(.55,.025,.18),marking,.004)
+    text('CARGO / %02d'%(index+1),(x-.24,y-.885,1.60),.063)
+    for dx in [-.57,.57]:
+        box('Case corner reinforcement',(x+dx,y,1.62),(.09,1.76,1.04),rubber,.015)
+        pipe('Case folding handle',[(x+dx,y-.90,1.45),(x+dx-.07,y-.94,1.45),(x+dx-.07,y-.94,1.72),(x+dx,y-.90,1.72)],.015,brass)
+    for dy in [-.65,.65]:
+        box('Case lid hinge',(x,y+dy,2.18),(.45,.08,.05),brass,.01)
+
+# Wall fittings stay outside the central approach and both breach paths.
+for side in [-1,1]:
+    for y in [-10,10]:
+        x=side*3.79
+        box('Cargo service panel',(x,y,2.72),(.13,1.35,1.55),steel,.025)
+        for dy in [-.38,.38]:
+            pipe('Valve feed',[(x-side*.13,y+dy,1.15),(x-side*.13,y+dy,3.90)],.035,brass)
+            points=[(x-side*.20,y+dy+.13*math.cos(i*math.tau/16),2.7+.13*math.sin(i*math.tau/16)) for i in range(17)]
+            pipe('Service valve wheel',points,.018,brass)
+        box('Panel caution plate',(x-side*.09,y,3.16),(.015,.77,.23),brass,.003)
+        text('ISOLATE', (x-side*.105,y+side*.32,3.10),.12,(math.pi/2,0,-side*math.pi/2))
+    pipe('Wall cable rack',[(side*3.85,-15,3.85),(side*3.85,15,3.85)],.035,steel)
+    for y in [-14,-12,-10,10,12,14]:
+        box('Cable rack bracket',(side*3.79,y,3.85),(.25,.065,.18),steel,.008)
 box('Recorder pedestal',(0,0,1.35),(.72,.72,.65),steel)
 box('Recovery cassette',(0,0,1.95),(.6,.45,.5),brass,.06)
 box('Recorder window',(0,-.245,1.98),(.35,.018,.16),rubber,.008)
 box('Recorder status lamp',(0,-.26,2.14),(.12,.025,.045),amber,.007)
+box('Recorder lamp guard',(0,-.25,2.19),(.19,.13,.05),steel,.012)
+for x in [-.23,.23]:
+    pipe('Recorder carrying bail',[(x,-.15,2.17),(x,-.15,2.31),(x,.12,2.31),(x,.12,2.17)],.018,rubber)
 for side in [-1,1]: box('Sealed latch',(side*.32,-.22,1.95),(.07,.09,.18),steel,.008)
 text('ARCHIVE / 05',(-.22,-.27,1.82),.052)
 
@@ -199,10 +245,14 @@ pipe('Crane bracing',[(2,9,8.1),(2,9,9),(0,2,7.2)],.025,steel)
 text('PELAGIC / 05',(-2.2,-15.54,6.15),.45)
 
 for i,(x,y,s) in enumerate([(9,11,1.6),(-10,-12,2.2),(10,-11,1.8),(-12,7,2.0)]):
-    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2,radius=1,location=(x,y,.25))
+    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=3,radius=1,location=(x,y,.25))
     rock=link(bpy.context.object,'Encrusted outcrop',stone)
     rock.scale=(s,s*1.1,s*.65)
-    for vertex in rock.data.vertices: vertex.co*=1+.13*math.sin(vertex.index*7.3+i)
+    for vertex in rock.data.vertices:
+        p=vertex.co
+        p*=1+.08*math.sin(p.x*5.1+p.y*3.4+i)+.045*math.sin(p.z*8.3-p.y*4.7)
+        p.z=max(-.28,p.z)
+    for polygon in rock.data.polygons: polygon.use_smooth=True
 
 bpy.ops.object.select_all(action='DESELECT')
 for o in collection.objects: o.select_set(True)
@@ -211,15 +261,6 @@ bpy.ops.object.convert(target='MESH')
 for o in collection.objects:
     bpy.context.view_layer.objects.active=o
     for modifier in list(o.modifiers): bpy.ops.object.modifier_apply(modifier=modifier.name)
-    o.data.color_attributes.new(name='Corrosion',type='FLOAT_COLOR',domain='POINT')
-    for vertex,color in zip(o.data.vertices,o.data.color_attributes['Corrosion'].data):
-        p=o.matrix_world@vertex.co
-        grain=(math.sin(p.x*8.1+p.y*3.4+p.z*5.2)+math.sin(p.y*19+p.z*7.1))*.16
-        patch=math.sin(p.x*2.4+p.y*.83)+math.cos(p.y*1.77+p.z*2.6)+grain
-        base=o.data.materials[0].diffuse_color[:3]
-        rust=(.22,.12,.065)
-        blend=max(0,min(.85,(patch-.12)*.5))
-        color.color=tuple(base[c]*(1-blend)+rust[c]*blend for c in range(3))+(1,)
 groups={}
 for o in collection.objects: groups.setdefault(o.data.materials[0].name,[]).append(o)
 for name,parts in groups.items():
@@ -247,7 +288,8 @@ for obj in list(collection.objects):
     bpy.ops.mesh.select_all(action='SELECT')
     bpy.ops.uv.smart_project(angle_limit=.8,island_margin=.012)
     bpy.ops.object.mode_set(mode='OBJECT')
-    image=bpy.data.images.new(mat.name+' wear',width=512,height=512,alpha=False)
+    resolution=1024 if mat in [paint,steel] else 512
+    image=bpy.data.images.new(mat.name+' wear',width=resolution,height=resolution,alpha=False)
     nodes=mat.node_tree.nodes
     shader=next(n for n in nodes if n.type=='BSDF_PRINCIPLED')
     output=next(n for n in nodes if n.type=='OUTPUT_MATERIAL')
@@ -262,7 +304,7 @@ for obj in list(collection.objects):
     path=texture_dir/(mat.name.replace(' ','-')+'.jpg')
     image.filepath_raw=str(path)
     image.file_format='JPEG'
-    image.save()
+    image.save(quality=75)
     baked=bpy.data.images.load(str(path),check_existing=False)
     baked.pack()
     texture.image=baked

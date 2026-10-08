@@ -22,4 +22,17 @@ const bytes=await readFile(new URL('../../public/models/wreckward_freighter.glb'
 // Node inspects actual geometry/proxies; image decoding is verified in the browser.
 const asset=()=>new api.GLTFLoader().register(()=>({name:'NodeTextureStub',loadTexture:()=>Promise.resolve(new api.Texture())})).parseAsync(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength),'');
 test('authored freighter has two distinct anchors and bounded visible batches',async()=>{const gltf=await asset();assert(gltf.scene.getObjectByName('Freighter_anchor_entry'));assert(gltf.scene.getObjectByName('Freighter_anchor_exit'));let visible=0,proxy=0;gltf.scene.traverse(node=>{if(node.isMesh){if(node.userData.physicsCollider)proxy++;else visible++;}});assert(proxy>=10);assert(visible<=10);assert(bytes.length<2_000_000);});
+test('polished freighter keeps finite baked UVs and a bounded visible vertex budget',async()=>{
+  const gltf=await asset();let vertices=0,mapped=0;
+  gltf.scene.traverse(node=>{
+    if(!node.isMesh||node.userData.physicsCollider)return;
+    const position=node.geometry.getAttribute('position');vertices+=position.count;
+    for(const value of position.array)assert(Number.isFinite(value));
+    if(node.material.map){
+      const uv=node.geometry.getAttribute('uv');assert(uv);mapped++;
+      for(const value of uv.array)assert(Number.isFinite(value)&&value>=-.001&&value<=1.001);
+    }
+  });
+  assert.equal(mapped,4);assert(vertices<40_000);
+});
 test('native Rapier blocks solid walls and deck, permits both breaches and prevents tunneling',async()=>{const gltf=await asset(),world=new api.WreckwardWorld(new api.Scene(),-27);world.attach(gltf.scene);const move=(start,end)=>{const previous=new api.Vector3(...start),position=new api.Vector3(...end);world.resolveDiver(position,previous);return position;};try{const wall=move([-293,-24.3,-170],[-300,-24.3,-170]);assert(wall.x>-296.7);const entry=move([-293,-24.3,-166],[-297.6,-24.3,-166]);assert(Math.abs(entry.x+297.6)<.05);const exit=move([-300,-24.3,-174],[-307,-24.3,-174]);assert(Math.abs(exit.x+307)<.05);const roof=move([-300,-24.3,-170],[-300,0,-170]);assert(roof.y<-22.3);}finally{world.dispose();}});
