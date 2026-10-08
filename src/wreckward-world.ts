@@ -2,11 +2,13 @@ import * as T from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { REACH_SITE } from './wreckward';
+import {RESEARCH_ROV} from './research-rov';
 export class WreckwardWorld {
   readonly root=new T.Group();loaded=false;
   private loading?:Promise<void>;private retryAt=0;
   private physics?:RAPIER.World;private controller?:RAPIER.KinematicCharacterController;private body?:RAPIER.Collider;
   private lamp?:T.MeshStandardMaterial;private recovered?:boolean;
+  private rovBody?:RAPIER.Collider;
   private prone=new T.Quaternion().setFromAxisAngle(new T.Vector3(1,0,0),Math.PI/2);private orientation=new T.Quaternion();
   constructor(scene:T.Scene,readonly floor:number){this.root.name='Wreckward Reach authored freighter';this.root.position.set(REACH_SITE.x,floor,REACH_SITE.z);scene.add(this.root);}
   async load(){
@@ -27,6 +29,12 @@ export class WreckwardWorld {
   resolveDiver(position:T.Vector3,previous:T.Vector3,rotation?:T.Quaternion){
     if(!this.loaded||Math.min(position.x,previous.x)>REACH_SITE.x+20||Math.max(position.x,previous.x)<REACH_SITE.x-20||Math.min(position.z,previous.z)>REACH_SITE.z+25||Math.max(position.z,previous.z)<REACH_SITE.z-25||Math.min(position.y,previous.y)>this.floor+12)return;
     if(rotation)this.orientation.copy(rotation).multiply(this.prone);else this.orientation.copy(this.prone);this.body!.setRotation(this.orientation);this.body!.setTranslation(previous);this.physics!.step();this.controller!.computeColliderMovement(this.body!,{x:position.x-previous.x,y:position.y-previous.y,z:position.z-previous.z},RAPIER.QueryFilterFlags.EXCLUDE_SENSORS);const movement=this.controller!.computedMovement();position.set(previous.x+movement.x,previous.y+movement.y,previous.z+movement.z);
+  }
+  resolveRov(position:T.Vector3,previous:T.Vector3){
+    if(!this.loaded||Math.min(position.x,previous.x)>REACH_SITE.x+20||Math.max(position.x,previous.x)<REACH_SITE.x-20||Math.min(position.z,previous.z)>REACH_SITE.z+25||Math.max(position.z,previous.z)<REACH_SITE.z-25||Math.min(position.y,previous.y)>this.floor+12)return;
+    this.rovBody??=this.physics!.createCollider(RAPIER.ColliderDesc.ball(RESEARCH_ROV.radius).setSensor(true));this.rovBody.setTranslation(previous);this.physics!.step();
+    this.controller!.computeColliderMovement(this.rovBody,{x:position.x-previous.x,y:position.y-previous.y,z:position.z-previous.z},RAPIER.QueryFilterFlags.EXCLUDE_SENSORS);
+    const d=this.controller!.computedMovement();position.set(previous.x+d.x,previous.y+d.y,previous.z+d.z);
   }
   dispose(){this.physics?.free();this.root.traverse(node=>{if(node instanceof T.Mesh){node.geometry.dispose();for(const material of Array.isArray(node.material)?node.material:[node.material])material.dispose();}});this.root.removeFromParent();}
 }

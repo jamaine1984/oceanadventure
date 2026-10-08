@@ -12,7 +12,8 @@ export function sanitizeVoyage(value: unknown): VoyageState {
   const unique=(input:unknown,valid:(id:string)=>boolean)=>Array.isArray(input)?[...new Set(input.filter((id):id is string=>typeof id==='string'&&valid(id)))]:[];
   state.completed=unique(item.completed,id=>!!contractById(id));
   state.discoveries=[...new Set(['harbor',...unique(item.discoveries,id=>LANDMARKS.some(place=>place.id===id))])];
-  state.blueprints=unique(item.blueprints,id=>id==='survey-anchor'||id==='scooter-drive');
+  state.blueprints=unique(item.blueprints,id=>id==='survey-anchor'||id==='scooter-drive'||id==='research-rov');
+  if(state.completed.includes('reach-archive')&&!state.blueprints.includes('research-rov'))state.blueprints.push('research-rov');
   for(const key of Object.keys(CLIENTS) as (keyof typeof CLIENTS)[]) state.reputation[key]=Number.isFinite(item.reputation?.[key])?Math.max(0,Math.min(10000,Math.floor(item.reputation[key]))):0;
   for(const contract of CONTRACTS) if(state.completed.includes(contract.id))state.completions[contract.id]=Number.isFinite(item.completions?.[contract.id])?Math.max(1,Math.min(10000,Math.floor(item.completions[contract.id]))):1;
   if(Array.isArray(item.pins))for(const pin of item.pins.slice(0,12))if(pin&&typeof pin.id==='string'&&/^pin-[a-z0-9-]{1,40}$/.test(pin.id)&&!state.pins.some(item=>item.id===pin.id)&&Number.isFinite(pin.x)&&Number.isFinite(pin.z)&&pin.x>=CHART_BOUNDS.minX&&pin.x<=CHART_BOUNDS.maxX&&pin.z>=CHART_BOUNDS.minZ&&pin.z<=CHART_BOUNDS.maxZ&&typeof pin.name==='string')state.pins.push({id:pin.id,x:pin.x,z:pin.z,name:pin.name.replace(/[<>\x00-\x1f]/g,'').slice(0,36)||'Waypoint'});

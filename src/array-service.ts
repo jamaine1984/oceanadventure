@@ -40,7 +40,7 @@ export class ArrayService {
     if(this.root.visible&&!this.loaded&&!this.loading&&performance.now()>=this.retryAt)void this.load().catch(()=>{});
     if(this.lamp&&this.restored!==restored){this.lamp.color.set(restored?0x49be96:0xed642b);this.lamp.emissive.copy(this.lamp.color);this.restored=restored;}
   }
-  resolveDiver(position:T.Vector3,previous:T.Vector3){if(!this.loaded||!this.cabinet.containsPoint(position))return;if(!this.cabinet.containsPoint(previous))position.copy(previous);else position.z=this.cabinet.max.z+.01;}
+  resolveDiver(position:T.Vector3,previous:T.Vector3,radius=0){const bounds=radius?this.cabinet.clone().expandByScalar(radius):this.cabinet;if(!this.loaded||!bounds.containsPoint(position))return;if(!bounds.containsPoint(previous))position.copy(previous);else position.z=bounds.max.z+.01;}
   show(){if(this.open||!this.loaded)return;this.origin=document.activeElement instanceof HTMLElement?document.activeElement:undefined;this.circuits=ARRAY_RECEIVERS.map(()=>({source:0,reversed:false}));this.diagnostics=[];this.status.textContent='Feed isolated';this.render();this.dialog.showModal();this.changed(true);}
   close(){if(!this.busy)this.dialog.close();}
   private render(){

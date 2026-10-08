@@ -20,11 +20,13 @@ The underwater Scanner automatically sweeps every seven simulation seconds. Its 
 
 Completing Echoes in the Seagrass unlocks the Manta Dive Drive blueprint: fabricate it for 650 credits at the dockside inventory, enable it while diving and gain forward propulsion below the surface. Its battery consumes power while thrusting, recharges aboard and survives local save/export/import. Reverse, normal swimming and the collision resolver remain available; assist does not use powered thrust.
 
+Archiving The Freighter Archive unlocks the Sentry Research ROV, including existing paid freighter receipts. Fabricate it for 900 credits at the outfitter. From a stopped yacht in open water, Launch ROV enters a remote chase/optical camera with search lights, six animated thrusters and automatic/manual sonar identification. Its 120-meter straight tether has a conservative full-body limit; it is not a simulated wrapping cable. Battery drains while deployed and recharges aboard. Normal recall, reserve recovery and free recovery return helm control without awarding cargo. The manipulator is modeled but remote salvage, photographs and dedicated ROV missions remain future work.
+
 This is the first full-game foundation, not a completed five-region production release. The larger approved scope and release gates are tracked in [the full-game roadmap](docs/FULL_GAME_ROADMAP.md). Ads remain deferred.
 
 `npm run test:unit` runs the focused save, campaign, equipment, movement, player-asset and scanner checks. GitHub Actions runs these checks plus the production build/package check on pushes and pull requests; this does not replace browser or physical-device QA.
 
-Atlas / Saves exports a validated JSON voyage for another computer, imports it with confirmation and retains rolling local recovery checkpoints. Backups are best effort when browser storage is full. These are local saves, not cloud synchronization. Importing an older checkpoint intentionally rolls progress back; review its balance and expedition count before confirming.
+Atlas / Saves exports a validated JSON voyage for another computer, imports it with confirmation and retains rolling local recovery checkpoints. Backups are best effort when browser storage is full. These are local saves, not cloud synchronization. Paid ROV equipment uses root save version 3 so older, pre-ROV builds refuse it rather than erase ownership; update both computers before importing. Importing an older checkpoint intentionally rolls progress back; review its balance and expedition count before confirming.
 
 ## Run
 
@@ -56,6 +58,17 @@ Open `http://localhost:5174/`.
 - `E`: return to the helm
 - `C`: cycle first-person, chase and portrait views
 - Drag in portrait view: orbit the same GLB character independently of swimming direction
+
+### Research ROV
+
+- `W` / `S`: fixed-speed forward/reverse thrust
+- `A` / `D`: turn
+- `Space` / `Ctrl`: rise/descend
+- Drag the scene: aim the vehicle
+- `F`: sonar pulse, with a separate manual cooldown
+- `C`: external/optical camera
+- `E`: recall to the vessel
+- Controller sticks/triggers/bumpers and touch movement controls provide equivalent pilot input; boost is unavailable in ROV mode.
 
 ### Environment
 
@@ -94,6 +107,8 @@ npx --yes --package=@playwright/cli playwright-cli -s=story-check close
 
 To verify the fifth chapter instead, run `scripts/verify-story-browser.cjs` then `scripts/verify-wreckward-browser.cjs` in the same disposable session. It seeds four prerequisite receipts and dive-drive ownership, then earns the freighter mission through controls. It checks failed-save feedback, partial reload, both breaches, drive withdrawal, solid-deck collision, mobile rendering, the 1,100-credit payment and pay-once/reload protection. It does not prove a normally earned five-chapter campaign.
 
+ROV verification uses `verify-story-browser.cjs`, `verify-rov-browser.cjs`, then `verify-rov-touch.cjs` in the same disposable CLI session. Five prerequisite receipts and a 1,100-credit bank are seeded; the scripts then purchase the actual vehicle, test model/storage failures, pilot it, identify contacts, exercise the tether/reserve limits and verify reload. The touch script copies that acquired equipment into an isolated emulated-touch context with a full-charge fixture. It does not establish physical-device performance or a normally earned campaign.
+
 ## Work From Another Computer
 
 ```powershell
@@ -128,6 +143,9 @@ The active fleet uses the Blender-authored v2 vessels. Walking and swimming use 
 - `assets/blender/array_service_station.blend`
 - `public/models/array_service_station.glb`
 - `scripts/build_array_service.py`
+- `assets/blender/sentry_research_rov.blend`
+- `public/models/sentry_research_rov.glb`
+- `scripts/build_research_rov.py`
 - `assets/blender/wreckward_freighter.blend`
 - `assets/blender/textures/wreckward/`
 - `public/models/wreckward_freighter.glb`

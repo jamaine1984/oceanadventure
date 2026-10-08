@@ -38,12 +38,12 @@ button:disabled { cursor: default; }
 .navigation-guide { position: absolute; left: 20px; bottom: 118px; z-index: 3; display: grid; gap: 5px; color: #f4ead2; pointer-events: none; text-shadow: 0 2px 8px #031d27; }
 .navigation-guide span { font-weight: 700; font-size: 15px; }
 .navigation-guide small { color: #d2e0e1; font-size: 11px; }
-.dive-tools { position: absolute; right: 20px; bottom: 90px; width: 350px; z-index: 4; display: none; border: 1px solid #b7c7c644; border-radius: 10px; background: #092b39e8; box-shadow: 0 10px 45px #001a2844; padding: 9px; }
+.dive-tools,.rov-tools { position: absolute; right: 20px; bottom: 90px; width: 350px; z-index: 4; display: none; border: 1px solid #b7c7c644; border-radius: 10px; background: #092b39e8; box-shadow: 0 10px 45px #001a2844; padding: 9px; }
 [data-player-mode="swim"] .dive-tools { display: grid; gap: 10px; }
 .dive-tools__tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
-.dive-tools button, .journal button, .pause-menu button[data-rescue] { min-height: 42px; padding: 8px 10px; border: 1px solid #a8c3c345; border-radius: 6px; background: #264851; color: #edf4ef; font-size: 12px; cursor: pointer; }
-.dive-tools button[aria-pressed="true"] { background: #d1b778; color: #102d39; border-color: #efdaaa; }
-.dive-tools button:disabled { opacity: .45; }
+.dive-tools button,.rov-tools button, .journal button, .pause-menu button[data-rescue] { min-height: 42px; padding: 8px 10px; border: 1px solid #a8c3c345; border-radius: 6px; background: #264851; color: #edf4ef; font-size: 12px; cursor: pointer; }
+.dive-tools button[aria-pressed="true"],.rov-tools button[aria-pressed="true"] { background: #d1b778; color: #102d39; border-color: #efdaaa; }
+.dive-tools button:disabled,.rov-tools button:disabled { opacity: .45; }
 .dive-tools__action { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px; }
 .dive-tools__commands { display:flex;align-items:center;gap:6px; }
 .dive-tools__commands [data-sonar-pulse] { width:44px;min-height:44px;padding:8px;flex:none; }
@@ -105,7 +105,7 @@ button:disabled { cursor: default; }
   .action-dock button { min-height: 40px !important; }
   .navigation-guide { left: 12px; bottom: 140px; max-width: calc(100% - 190px); }
   .navigation-guide small { display: none; }
-  .dive-tools { left: 12px; right: auto; bottom: 205px; width: min(340px, calc(100% - 24px)); }
+  .dive-tools,.rov-tools { left: 12px; right: auto; bottom: 205px; width: min(340px, calc(100% - 24px)); }
   .journal__panel { padding: 18px; }
   .journal__goals, .journal__species { grid-template-columns: 1fr; }
 }
@@ -348,6 +348,22 @@ button:focus-visible {
 .story-radio__status { padding:0 14px 14px;color:#efc893; }
 .dive-tools__feedback { margin:8px 0 0;font-size:12px;line-height:1.5;color:#f1cc91; }
 .dive-tools__feedback[hidden] { display:none; }
+.action-dock__feedback { flex-basis:100%;max-width:420px;margin:0;color:#f1cc91;font-size:12px;line-height:1.4; }
+.action-dock__feedback[hidden],[data-rov-launch][hidden] { display:none; }
+[data-player-mode="swim"] .rov-tools { display:none; }
+[data-player-mode="rov"] .rov-tools { display:grid;gap:8px; }
+.rov-tools__heading { display:flex;justify-content:space-between;gap:12px;font-size:12px; }
+.rov-tools__heading span { color:#d7e6dc; }
+.rov-tools__commands { display:flex;align-items:center;gap:6px;font-size:11px;color:#c3d9d6; }
+.rov-tools__commands button { width:44px;flex:none; }
+.rov-tools svg { width:20px;height:20px; }
+.rov-tools ul { list-style:none;margin:0;padding:0;display:grid;gap:6px; }
+.rov-tools li { display:grid;gap:3px;border-top:1px solid #a8c3c345;padding-top:7px;font-size:12px; }
+.rov-tools li span { font-size:10px;color:#bed1d0;line-height:1.4; }
+[data-player-mode="rov"] .swim-control { display:flex; }
+#game-root[data-player-mode="rov"] [data-swim-stat] { display:inline-flex !important; }
+#game-root[data-player-mode="rov"] .air-status { display:none !important; }
+[data-player-mode="rov"] .sea-state { display:none; }
 .array-service { width:min(650px,calc(100vw - 24px));max-height:calc(100dvh - 24px);overflow:auto;padding:18px;border:1px solid #87a7a6;border-radius:6px;background:#12343d;color:#f4f0df; }
 .array-service::backdrop { background:#001b2644; }
 .array-service header { display:flex;justify-content:space-between;align-items:center;gap:12px; }
@@ -801,6 +817,9 @@ button:focus-visible {
 }
 
 .pause-menu__panel {
+  max-height:calc(100dvh - 24px);
+  overflow-y:auto;
+  overscroll-behavior:contain;
   display: grid;
   width: min(430px, calc(100vw - 28px));
   gap: 18px;
@@ -1116,7 +1135,7 @@ button:focus-visible {
 
 @media(max-width:760px) {
   .navigation-guide { bottom:215px; }
-  .dive-tools { bottom:250px; }
+  .dive-tools,.rov-tools { bottom:250px; }
 }
 @media(max-width:760px) and (min-height:521px) {
   .sea-state { top:230px; }
@@ -1135,7 +1154,7 @@ button:focus-visible {
   .navigation-guide { bottom:110px; left:10px; max-width:calc(100% - 230px); }
   .navigation-guide small { display:none; }
   .notice { display:none; }
-  .dive-tools { left:10px; right:auto; bottom:145px; width:min(360px,calc(100% - 230px));max-height:calc(100dvh - 295px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin; }
+  .dive-tools,.rov-tools { left:10px; right:auto; bottom:145px; width:min(360px,calc(100% - 230px));max-height:calc(100dvh - 295px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin; }
   .touch-controls { display:grid; right:10px; bottom:10px; grid-template-columns:repeat(3,52px); grid-template-rows:repeat(3,44px); gap:5px; }
 }
 #game-root:not(.is-ready) .action-dock, #game-root:not(.is-ready) .sea-state, #game-root:not(.is-ready) .touch-controls { pointer-events:none; }
@@ -1295,9 +1314,9 @@ button:focus-visible {
   .action-dock__secondary.is-open { display:grid; }
   .navigation-guide { bottom:175px; width:calc(100% - 215px); min-width:0; max-width:calc(100% - 215px); }
   .navigation-guide span { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; }
-  .dive-tools { bottom:200px; padding:8px;max-height:calc(100dvh - 212px - var(--hud-bottom,188px));overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin; }
+  .dive-tools,.rov-tools { bottom:200px; padding:8px;max-height:calc(100dvh - 212px - var(--hud-bottom,188px));overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin; }
   [data-player-mode="swim"] .dive-tools { gap:6px; }
-  .dive-tools button { min-height:38px; padding:6px; }
+  .dive-tools button,.rov-tools button { min-height:38px; padding:6px; }
   .island-tools { bottom:230px; }
 }
 @media(max-width:1024px) and (max-height:520px) {
@@ -1316,6 +1335,6 @@ button:focus-visible {
 @media(hover:none) and (min-width:761px) and (min-height:521px) {
   .action-dock { bottom:22px; right:230px; max-width:calc(100% - 250px); }
   .navigation-guide { bottom:120px; max-width:calc(100% - 250px); }
-  .dive-tools,.island-tools { right:230px; bottom:160px; }
+  .dive-tools,.rov-tools,.island-tools { right:230px; bottom:160px; }
   .notice { left:auto; right:230px; top:132px; bottom:auto; max-width:350px; }
 }

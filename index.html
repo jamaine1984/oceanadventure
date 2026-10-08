@@ -57,7 +57,9 @@
           <button type="button" data-story-toggle title="Expedition radio"><i data-lucide="radio" aria-hidden="true"></i>Radio</button>
           <button type="button" data-atlas-toggle aria-label="Open voyage atlas" title="Voyage atlas"><i data-lucide="map" aria-hidden="true"></i> Atlas</button>
           <button type="button" data-save title="Save progress"><i data-lucide="save" aria-hidden="true"></i> Save</button>
+          <button type="button" data-rov-launch aria-label="Launch research ROV" title="Launch research ROV in open water below 1.4 knots" hidden><i data-lucide="camera" aria-hidden="true"></i><span>Launch ROV</span></button>
         </div>
+        <p class="action-dock__feedback" data-rov-feedback role="status" hidden></p>
       </div>
       <section class="island-tools" aria-label="Island exploration">
         <label for="island-destination">Island destinations</label>
@@ -94,6 +96,12 @@
         </section>
       </section>
       <div class="dive-reticle" aria-hidden="true"><span></span></div>
+      <section class="rov-tools" aria-label="Research ROV controls">
+        <div class="rov-tools__heading"><strong>Sentry Research ROV</strong><span data-rov-range>0 / 120 m</span></div>
+        <div class="dive-tools__equipment"><span>Battery</span><meter data-rov-meter min="0" max="100" value="100" aria-label="Research ROV battery"></meter><span data-rov-battery>100%</span></div>
+        <div class="rov-tools__commands"><button type="button" data-rov-pulse title="Pulse ROV sonar" aria-label="Pulse ROV sonar"><i data-lucide="radar" aria-hidden="true"></i></button><button type="button" data-rov-light title="Search lights" aria-label="Search lights" aria-pressed="true"><i data-lucide="power" aria-hidden="true"></i></button><span data-rov-sweep>Last sweep 0 s / 0 contacts</span></div>
+        <ul data-rov-contacts aria-label="ROV sonar contacts"></ul>
+      </section>
       <div class="navigation-guide" data-navigation-guide><span data-nav-bearing>Research harbor</span><small data-nav-help>W/S throttle · A/D steer · E dive · C camera · J journal</small></div>
       <section class="journal" data-journal aria-labelledby="journal-title" aria-hidden="true">
         <div class="journal__panel"><header><div><span class="hud__eyebrow">Ocean Adventure</span><h2 id="journal-title">Field journal</h2></div><button type="button" data-journal-close aria-label="Close journal">Close</button></header><div data-journal-content></div></div>

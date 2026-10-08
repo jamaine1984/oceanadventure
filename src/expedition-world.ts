@@ -6,6 +6,7 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import { REEF_SITE, WRECK_SITE, SAMPLE_SITES, LAGOON_SITE, TRANSECT_SITE, LAGOON_SAMPLES, TRANSECT_STATIONS, GARDEN_SITE, PASSAGE_SITE, PASSAGE_SAMPLES, PASSAGE_STATIONS, expeditionPlan, type ExpeditionRecord, type SpeciesKey } from './expedition-state';
 import { IslandWalk, trailDistance } from './island-walk';
 import { wildlifePose } from './wildlife-motion';
+import {sweepExpandedBox} from './rov-collision';
 
 type RockBounds = { center: T.Vector3; radii: T.Vector3 };
 type Animal = { key: SpeciesKey; root: T.Group; home: T.Vector3; radius: number; pace: number; phase: number; parts: T.Object3D[] };
@@ -1088,11 +1089,15 @@ export class ExpeditionWorld {
       const score=(this.projected.x**2+this.projected.y**2)*100+distance*.01;if(score<best){best=score;candidate=a;}
     }return candidate;
   }
-  resolveDiver(position:T.Vector3,previous:T.Vector3){
-    for(const b of this.rockBounds){const d=position.clone().sub(b.center);const rx=b.radii.x+.45,ry=b.radii.y+.55,rz=b.radii.z+.45;const norm=Math.sqrt((d.x/rx)**2+(d.y/ry)**2+(d.z/rz)**2);if(norm<1){if(norm<.001){position.copy(previous);continue;}position.copy(b.center).add(new T.Vector3(d.x/norm,d.y/norm,d.z/norm));}}
+  resolveDiver(position:T.Vector3,previous:T.Vector3,radius=.45){
+    for(const b of this.rockBounds){const d=position.clone().sub(b.center);const rx=b.radii.x+radius,ry=b.radii.y+Math.max(.55,radius),rz=b.radii.z+radius;const norm=Math.sqrt((d.x/rx)**2+(d.y/ry)**2+(d.z/rz)**2);if(norm<1){if(norm<.001){position.copy(previous);continue;}position.copy(b.center).add(new T.Vector3(d.x/norm,d.y/norm,d.z/norm));}}
     const local=position.clone();this.wreck.worldToLocal(local);
-    if(local.z>-10&&local.z<10&&local.y>-.4&&local.y<3.3&&Math.abs(local.x)<3.1){position.copy(previous);}
-    position.y=Math.max(position.y,expeditionFloor(position.x,position.z)+.8);
+    if(radius>.45){
+      const before=previous.clone();this.wreck.worldToLocal(before);
+      const fraction=sweepExpandedBox(before,local,{x:-3.1,y:-.4,z:-10},{x:3.1,y:3.3,z:10},radius);
+      position.lerpVectors(previous,position,fraction);
+    }else if(local.z>-10&&local.z<10&&local.y>-.4&&local.y<3.3&&Math.abs(local.x)<3.1){position.copy(previous);}
+    position.y=Math.max(position.y,expeditionFloor(position.x,position.z)+Math.max(.8,radius));
   }
   updateSites(record:ExpeditionRecord,tool:string){
     const plan=expeditionPlan(record);

@@ -1,5 +1,6 @@
 import { createElement, Ship, Camera, Package, FlaskConical, CircleGauge, Wind, Shield, Footprints, Flashlight, X, BookOpen, BatteryCharging, type IconNode } from 'lucide';
 import { SCOOTER } from './field-equipment';
+import {RESEARCH_ROV} from './research-rov';
 import { BOAT_CATALOG, UPGRADE_CATALOG, upgradeCost, researchDiscount, type PlayerProgress, type BoatKey, type UpgradeKey } from './progression';
 import { SPECIES, expeditionPlan, expeditionReward, type SpeciesKey } from './expedition-state';
 
@@ -20,7 +21,7 @@ export class Inventory {
   constructor(private getProgress: () => PlayerProgress, private canShop: () => boolean,
     private shop: (kind: 'boat' | 'upgrade', key: BoatKey | UpgradeKey) => void,
     private changed: (open: boolean) => void,
-    private fabricate: () => void = () => {}) {
+    private fabricate: () => void = () => {},private fabricateResearchRov:()=>void=()=>{}) {
     this.dialog.className = 'inventory';
     this.dialog.setAttribute('aria-labelledby', 'inventory-title');
     this.dialog.innerHTML = '<header><div><span class="hud__eyebrow">Ocean Adventure</span><h2 id="inventory-title">Expedition inventory</h2></div></header>';
@@ -55,7 +56,7 @@ export class Inventory {
 
   render() {
     const active=document.activeElement as HTMLElement|null;
-    const focusAttribute=active&&this.contents.contains(active)?['data-fabricate-scooter','data-inventory-upgrade','data-inventory-boat'].find(name=>active.hasAttribute(name)):undefined;
+    const focusAttribute=active&&this.contents.contains(active)?['data-fabricate-scooter','data-fabricate-rov','data-inventory-upgrade','data-inventory-boat'].find(name=>active.hasAttribute(name)):undefined;
     const focusValue=focusAttribute?active!.getAttribute(focusAttribute):undefined;
     const p = this.getProgress(), r = p.expedition;
     this.balance.textContent = `${p.credits.toLocaleString()} credits`;
@@ -88,6 +89,10 @@ export class Inventory {
       const owned=!!p.fieldEquipment?.scooter,unlocked=p.voyage.blueprints.includes(SCOOTER.blueprint);
       const drive=row(SCOOTER.name,owned?`Fabricated · ${Math.ceil(p.fieldEquipment!.charge)}% charge · Recharges aboard`:unlocked?'Blueprint acquired · Rechargeable underwater propulsion':'Blueprint: complete Echoes in the Seagrass',BatteryCharging);
       const craft=document.createElement('button');craft.dataset.fabricateScooter='';craft.textContent=owned?'Fabricated':unlocked?`Build · ${SCOOTER.cost} credits`:'Blueprint locked';craft.disabled=owned||!unlocked||!this.canShop()||p.credits<SCOOTER.cost;craft.onclick=this.fabricate;drive.append(craft);
+      const rovOwned=!!p.rov?.owned,rovUnlocked=p.voyage.completed.includes(RESEARCH_ROV.contract);
+      const rov=row(RESEARCH_ROV.name,rovOwned?`Fabricated / ${Math.ceil(p.rov!.battery)}% battery`:rovUnlocked?'Blueprint acquired / tethered camera and sonar scout':'Blueprint: archive The Freighter Archive',Camera);
+      const preview=document.createElement('img');preview.src='/textures/inventory/rov.jpg';preview.alt=RESEARCH_ROV.name;preview.className='inventory__boat-image';rov.prepend(preview);
+      const build=document.createElement('button');build.dataset.fabricateRov='';build.textContent=rovOwned?'Fabricated':rovUnlocked?`Build / ${RESEARCH_ROV.cost} credits`:'Blueprint locked';build.disabled=rovOwned||!rovUnlocked||!this.canShop()||p.credits<RESEARCH_ROV.cost;build.onclick=this.fabricateResearchRov;rov.append(build);
       for (const [key, gear] of Object.entries(UPGRADE_CATALOG) as [UpgradeKey, typeof UPGRADE_CATALOG.engine][]) {
         const level = p.upgrades[key], cost = upgradeCost(key, level,researchDiscount(p)), max = level >= gear.maxLevel;
         const article = row(gear.name, `${gear.description} · Level ${level}/${gear.maxLevel}${researchDiscount(p)?` · ${Math.round(researchDiscount(p)*100)}% research discount`:''}`, gearIcons[key]);

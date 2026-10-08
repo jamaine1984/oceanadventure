@@ -3,14 +3,16 @@ import { newVoyage, sanitizeVoyage, type VoyageState } from './voyage-state';
 import { createArchive, parseArchive, type SaveArchive } from './save-archive';
 import { newFieldEquipment, sanitizeFieldEquipment, type FieldEquipment } from './field-equipment';
 import { newStory, sanitizeStory, type StoryState } from './story-state';
+import {sanitizeRov,type RovEquipment} from './research-rov';
 export type UpgradeKey = 'engine' | 'tank' | 'hull' | 'fins' | 'light';
 export type BoatKey = 'aurora' | 'voyager';
 export type AchievementKey = 'first_signal' | 'deep_diver' | 'storm_runner' | 'fleet_owner' | 'expedition_complete';
 
 export type PlayerProgress = {
-  saveVersion: 2;
+  saveVersion: 2|3;
   voyage: VoyageState;
   fieldEquipment?: FieldEquipment;
+  rov?:RovEquipment;
   story?: StoryState;
   credits: number;
   expeditions: number;
@@ -87,17 +89,25 @@ export function loadProgress(): PlayerProgress {
 export function normalizeProgress(value: unknown): PlayerProgress {
     if(!value||typeof value!=='object'||Array.isArray(value))throw new Error('Invalid voyage data.');
     const parsed=value as Partial<PlayerProgress>;
-    if(parsed.saveVersion!==undefined&&parsed.saveVersion!==2)throw new ProgressLoadError('This voyage was saved by a different game version. Keep the save and update the game.');
-    if(parsed.story&&parsed.story.version!==1){if(parsed.story.version===undefined)throw new Error('The story record is incomplete.');throw new ProgressLoadError('This story record needs a different game version. Keep the save and update the game.');}
-    if(parsed.voyage&&parsed.voyage.version!==1){if(parsed.voyage.version===undefined)throw new Error('The campaign record is incomplete.');throw new ProgressLoadError('The campaign save version is not supported. Keep the save and update the game.');}
-    if(parsed.expedition&&parsed.expedition.version!==2&&parsed.expedition.version!==3){if(parsed.expedition.version===undefined)throw new Error('The expedition record is incomplete.');throw new ProgressLoadError('The expedition save version is not supported. Keep the save and update the game.');}
+    if(parsed.saveVersion!==undefined&&parsed.saveVersion!==2&&parsed.saveVersion!==3)throw new ProgressLoadError('This voyage was saved by a different game version. Keep the save and update the game.');
+    // Future schemas must block rollback even when another record is incomplete.
+    for(const [record,allowed] of [[parsed.story,[1]],[parsed.voyage,[1]],[parsed.expedition,[2,3]],[parsed.rov,[1]]] as const){
+      if(record?.version!==undefined&&!(allowed as readonly number[]).includes(record.version))throw new ProgressLoadError('This voyage contains an unsupported record version. Keep the save and update the game.');
+    }
+    if(parsed.expedition?.version===3&&typeof parsed.expedition.route==='string'&&parsed.expedition.route.trim()&&!['reef','lagoon','passage','reach'].includes(parsed.expedition.route))throw new ProgressLoadError('This route needs a different game version. Keep the save and update the game.');
+    if(parsed.saveVersion===3&&!Object.hasOwn(parsed,'rov'))throw new Error('The current voyage is missing its equipment record.');
+    if(parsed.story&&parsed.story.version===undefined)throw new Error('The story record is incomplete.');
+    if(Object.hasOwn(parsed,'rov')&&(!parsed.rov||typeof parsed.rov!=='object'||Array.isArray(parsed.rov)))throw new Error('The ROV record is incomplete.');
+    if(parsed.rov&&parsed.rov.version===undefined)throw new Error('The ROV record is incomplete.');
+    if(parsed.rov&&(typeof parsed.rov.owned!=='boolean'||!Number.isFinite(parsed.rov.battery)))throw new Error('The ROV record is incomplete.');
+    if(parsed.voyage&&parsed.voyage.version===undefined)throw new Error('The campaign record is incomplete.');
+    if(parsed.expedition&&parsed.expedition.version===undefined)throw new Error('The expedition record is incomplete.');
     if(parsed.expedition?.version===3){
       if(typeof parsed.expedition.route!=='string'||!parsed.expedition.route.trim())throw new Error('The expedition route is incomplete.');
-      if(!['reef','lagoon','passage','reach'].includes(parsed.expedition.route))throw new ProgressLoadError('This route needs a different game version. Keep the save and update the game.');
     }
     if(parsed.expedition?.route==='reach'&&(parsed.expedition.contractId!=='reach-archive'||!Array.isArray(parsed.expedition.interiorSteps)))throw new Error('The freighter record is incomplete.');
     if(!Number.isFinite(parsed.credits)||parsed.credits<0||!Array.isArray(parsed.ownedBoats))throw new Error('The voyage is missing its saved balance or fleet.');
-    if(parsed.saveVersion===2){
+    if(parsed.saveVersion===2||parsed.saveVersion===3){
       const record=parsed.expedition,voyage=parsed.voyage;
       const object=(item:unknown)=>!!item&&typeof item==='object'&&!Array.isArray(item);
       const validUpgrades=object(parsed.upgrades)&&(Object.keys(UPGRADE_CATALOG)as UpgradeKey[]).every(key=>Number.isFinite(parsed.upgrades[key]));
@@ -123,10 +133,11 @@ export function normalizeProgress(value: unknown): PlayerProgress {
       if (typeof photo === 'string' && photo.startsWith('data:image/jpeg;base64,') && photo.length < 65000) collectionPhotos[key] = photo;
     }
     return {
-      saveVersion:2,
+      saveVersion:parsed.saveVersion===3||parsed.rov?.owned===true?3:2,
       story:sanitizeStory(parsed.story),
       voyage:sanitizeVoyage(parsed.voyage),
       fieldEquipment:sanitizeFieldEquipment(parsed.fieldEquipment,sanitizeVoyage(parsed.voyage).blueprints),
+      rov:sanitizeRov(parsed.rov,sanitizeVoyage(parsed.voyage).completed),
       credits: count(parsed.credits),
       expeditions: count(parsed.expeditions),
       upgrades: {

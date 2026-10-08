@@ -25,6 +25,8 @@ import { ResearchPartners } from './research-partners';
 import { ArrayService } from './array-service';
 import { commissionArray } from './array-repair';
 import { WreckwardWorld } from './wreckward-world';
+import {RovWorld} from './rov-world';
+import {RESEARCH_ROV,newRovEquipment,fabricateRov,rovBatteryStep,constrainRovTether,rovDepthBounds} from './research-rov';
 import { REACH_SITE, FREIGHTER_STEPS, freighterObjective, freighterApproach, freighterExit, freighterStepReady, recordFreighterStep } from './wreckward';
 import { VoyageAtlas } from './voyage-atlas';
 import { contractById, contractAvailable, nextStoryContract } from './voyage-catalog';
@@ -36,7 +38,7 @@ import { smoothWalkVelocity, walkFacing } from './walk-motion';
 import { SPECIES, SAMPLE_SITES, expeditionPlan, surveyPhotoCount, recoveryComplete, nearestTransect, passageApproach, passageExit, stableTransectReading, nearestSample, newExpedition, newContractExpedition, objectiveCount, reefComplete, expeditionReward, completedObjectives, type DiveTool, type SpeciesKey } from './expedition-state';
 
 type KeyMap = Record<string, boolean>;
-type PlayerMode = 'helm' | 'swim' | 'walk';
+type PlayerMode = 'helm' | 'swim' | 'walk' | 'rov';
 
 type MissionSignal = {
   name: string;
@@ -255,6 +257,10 @@ let wakeSideToggle = false;
 let music: OceanMusic | undefined;
 let musicStarting = false;
 let playerMode: PlayerMode = 'helm';
+let researchRov:RovWorld,rovBuilding=false,rovLaunching=false,rovYaw=0,rovPitch=0,rovChase=true,rovLights=true,rovSpeed=0;
+let rovLastScan=-Infinity,rovLastManual=-Infinity,rovContacts:ScanIdentification[]=[],rovFeedback='';
+let rovRenderedContacts:ScanIdentification[]|undefined;
+const rovPrevious=new THREE.Vector3(),rovAnchor=new THREE.Vector3();
 let walker: PlayerCharacter;
 let walkYaw = 0, walkPitch = 0, walkSpeed = 0;
 let firstPersonWalk = false;
@@ -596,7 +602,7 @@ async function initialize() {
   stage('modelsAndColliders');
   inventory = new Inventory(() => progress, () => canVisitStand() && !boatSwitching && !adBusy,
     (kind, key) => { if (kind === 'boat') void purchaseOrEquipBoat(key as BoatKey); else purchaseUpgrade(key as UpgradeKey); },
-    (open) => { clearPlayerInput(); resetFrameClock(); if (open) platform.gameplayStop(); else resumePlatformIfPlaying(); },()=>{void buildDiveDrive();});
+    (open) => { clearPlayerInput(); resetFrameClock(); if (open) platform.gameplayStop(); else resumePlatformIfPlaying(); },()=>{void buildDiveDrive();},()=>{void buildResearchRov();});
   voyageAtlas = new VoyageAtlas(()=>progress,()=>{const p=activePlayerPosition();return{x:p.x,z:p.z,yaw:playerMode==='helm'?heading:playerMode==='walk'?-walker.root.rotation.y:swimYaw};},()=>canVisitStand()&&!boatSwitching&&!adBusy,
     acceptVoyageContract,next=>{try{saveProgress(next);Object.assign(progress,next);cancelSwimAssist();updateHud();return true;}catch{return false;}},
     next=>{try{importProgress(next);replacingVoyage=true;location.reload();return true;}catch{return false;}},
@@ -606,6 +612,7 @@ async function initialize() {
   storyDialog=new StoryDialog(()=>progress,finishConversation,open=>{clearPlayerInput();resetFrameClock();if(open)platform.gameplayStop();else resumePlatformIfPlaying();});
   arrayService=new ArrayService(scene,expeditionFloor(190,-156),finishArrayRepair,open=>{clearPlayerInput();resetFrameClock();if(open)platform.gameplayStop();else resumePlatformIfPlaying();});
   wreckward=new WreckwardWorld(scene,expeditionFloor(REACH_SITE.x,REACH_SITE.z));
+  researchRov=new RovWorld(scene,physicsWorld);
   diveSonar=new DiveSonar(scene);
   if(progress.fieldEquipment?.scooter)void ensureDiveDrive().catch(()=>setNotice('Dive drive model unavailable. Your equipment is saved; toggle the drive to retry.'));
   selectWeather('bluewater', false);
@@ -1648,6 +1655,7 @@ function tick() {
 
   updateBoat(delta);
   updateSwimmer(delta);
+  updateResearchRov(delta);
   if(playerMode!=='swim'){
     const equipment=progress.fieldEquipment??=newFieldEquipment();
     equipment.charge=scooterStep(equipment,delta,{aboard:playerMode==='helm',enabled:false,forward:0,boost:false,depth:0,assisting:false}).charge;
@@ -1655,7 +1663,7 @@ function tick() {
   }
   if(scooterVisual)scooterVisual.visible=playerMode==='swim'&&scooterEnabled&&!firstPersonDive&&!!progress.fieldEquipment?.scooter;
   const rotor=scooterVisual?.getObjectByName('Manta_rotor');if(rotor)rotor.rotation.z+=delta*(scooterPowered?30:0);
-  diveSonar.update(gameTime,playerMode==='swim'&&selectedTool==='scanner');
+  diveSonar.update(gameTime,playerMode==='rov'||playerMode==='swim'&&selectedTool==='scanner');
   updateWalker(delta);
   updateUnderwaterWorld(delta);
   updateMissions(delta);
@@ -1669,7 +1677,7 @@ function tick() {
   const scanContext=[scanRecord.run,scanRecord.contractId,scanRecord.route,scanRecord.stage,scanRecord.waterSample,scanRecord.sedimentSample,scanRecord.cableFreed,scanRecord.sensorRecovered,scanRecord.arrayRestored,...scanRecord.transectReadings,...(scanRecord.interiorSteps??[])].join('|');
   if(scanContext!==sonarContext){sonarContext=scanContext;sonarStarted=-Infinity;sonarResults=[];diveSonar.clear();}
   if(scannerReady({swimming:playerMode==='swim',selected:selectedTool==='scanner'&&scannerAutomatic,depth:sampleOceanHeight(swimmer.position.x,swimmer.position.z,gameTime)-swimmer.position.y,paused:menusOpen(),acquiring:!!transectReading,time:gameTime,lastSweep:sonarStarted}))emitDiveSonar(false);
-  if(playerMode!=='swim'||selectedTool!=='scanner'||sampleOceanHeight(swimmer.position.x,swimmer.position.z,gameTime)-swimmer.position.y<=.6){sonarStarted=-Infinity;sonarResults=[];diveSonar.clear();}
+  if(playerMode!=='rov'&&(playerMode!=='swim'||selectedTool!=='scanner'||sampleOceanHeight(swimmer.position.x,swimmer.position.z,gameTime)-swimmer.position.y<=.6)){sonarStarted=-Infinity;sonarResults=[];diveSonar.clear();}
   expeditionWorld.pointLight(camera);
   researchPartners.update(gameTime,activePlayerPosition(),cameraUnderwater);
   hudAccumulator += delta;
@@ -1686,7 +1694,8 @@ function tick() {
     updateMs: renderStarted - updateStarted, renderMs: performance.now() - renderStarted,
     calls: renderer.info.render.calls, triangles: renderer.info.render.triangles,
     geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures,
-    mode: playerMode, scale: renderScale, position: activePlayerPosition().toArray(), vesselPosition: yacht.position.toArray(), lookYaw: playerMode==='walk'?walkYaw:swimYaw, lookPitch: playerMode==='walk'?walkPitch:swimPitch,
+    mode: playerMode, scale: renderScale, position: activePlayerPosition().toArray(), vesselPosition: yacht.position.toArray(), lookYaw: playerMode==='rov'?rovYaw:playerMode==='walk'?walkYaw:swimYaw, lookPitch: playerMode==='rov'?rovPitch:playerMode==='walk'?walkPitch:swimPitch,
+    rovBattery:progress.rov?.battery,rovLoaded:researchRov.loaded,rovChase,rovLights,rovVisible:researchRov.root.visible,rovCableVisible:researchRov.tether.visible,rovLightIntensity:researchRov.lamp.intensity,rovTether:playerMode==='rov'?researchRov.root.position.distanceTo(rovAnchor):undefined,
     walkFacing: playerMode==='walk'?-walker.root.rotation.y:undefined, walkSpeed: playerMode==='walk'?walkSpeed:undefined,
     characterSource: playerMode==='walk'?walker.source:swimmerCharacter.source, diveInspectionView, diveOrbitYaw,
     swimSpeed:actualSwimSpeed,scooterPowered,scooterLoaded:!!scooterVisual,scooterVisible:!!scooterVisual?.visible,scooterCharge:progress.fieldEquipment?.charge,
@@ -1862,7 +1871,7 @@ function triggerHullImpact(strength: number) {
   setNotice('Hull impact. Reduce speed near reefs.');
 }
 
-function activePlayerPosition(){return playerMode==='walk'?walker.root.position:playerMode==='helm'?yacht.position:swimmer.position;}
+function activePlayerPosition(){return playerMode==='rov'?researchRov.root.position:playerMode==='walk'?walker.root.position:playerMode==='helm'?yacht.position:swimmer.position;}
 function boatAtLanding(){return yacht&&Math.abs(yacht.position.x)<3&&yacht.position.z>15&&yacht.position.z<34&&Math.cos(heading)>.975&&Math.abs(speed)<.7;}
 function atLandmark(key:IslandDestination,range:number){const target=ISLAND_LANDMARKS[key];return playerMode==='walk'&&Math.hypot(walker.root.position.x-target.x,walker.root.position.z-target.z)<range;}
 function canBoardFromIsland(){return atLandmark('boat',3.2);}
@@ -2023,6 +2032,10 @@ function updateMissions(delta: number) {
   const active = activePlayerPosition();
   const discoveries=discoverNearby(progress.voyage,active);
   if(discoveries.length){persistExpedition();setNotice(`Chart updated: ${discoveries.map(place=>place.name).join(', ')}.`);}
+  if(playerMode==='rov'){
+    arrayService?.update(active,progress.voyage.completed.includes('array-repair'));wreckward?.update(active,record.route==='reach'&&(record.interiorSteps?.length??0)>=3);
+    if(gameTime>nextSaveAt){persistExpedition();nextSaveAt=gameTime+20;}return;
+  }
   const chartTarget=waypointLocation(progress.voyage);
   if(playerMode==='helm'&&chartTarget&&Math.hypot(active.x-chartTarget.x,active.z-chartTarget.z)<12){progress.voyage.activeWaypoint=undefined;cruiseActive=false;persistExpedition();setNotice(`Waypoint reached: ${chartTarget.name}.`);}
   if (record.stage === 'reef' && Math.hypot(active.x - plan.site.x, active.z - plan.site.z) < 40 && record.checkpoint !== 'reef') {
@@ -2106,6 +2119,7 @@ function objectiveLocation() {
 }
 
 function useDiveTool() {
+  if(playerMode==='rov'){pulseResearchRov();return;}
   if(playerMode==='walk'){useLandInteraction();return;}
   if (playerMode !== 'swim' || menusOpen() || gameTime - lastToolUse < .65) return;
   const record = progress.expedition;
@@ -2216,7 +2230,7 @@ function toggleJournal(force?:boolean) {
 function cancelSwimAssist(){cruiseActive=false;swimReturnToBoat=false;assistAnimal=undefined;assistReached=false;assistBlockedSeconds=0;}
 function canBoardSwimmer(){return swimmer.position.y>=sampleOceanHeight(swimmer.position.x,swimmer.position.z,gameTime)-1.5&&swimmer.position.distanceTo(yacht.position)<=BOAT_CATALOG[progress.activeBoat].length*.6+8;}
 function selectDiveTool(tool:DiveTool){cancelSwimAssist();transectReading=undefined;selectedTool=tool;toolButtons.forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.tool===tool)));updateHud();}
-function rescueDiver(){if(playerMode!=='helm'){returnToHelm('Free recovery complete. Your research cargo is safe and air is restored.');persistExpedition();}togglePause(false);}
+function rescueDiver(){if(playerMode==='rov')recallResearchRov('Free ROV recovery complete.');else if(playerMode!=='helm'){returnToHelm('Free recovery complete. Your research cargo is safe and air is restored.');persistExpedition();}togglePause(false);}
 
 function completeExpedition() { openResearchStand(); }
 
@@ -2368,6 +2382,93 @@ async function launchNextExpedition() {
   const plan=expeditionPlan(progress.expedition);
   setNotice(progress.expedition.stage==='reef'?`${plan.title}: sail to ${plan.habitat.toLowerCase()}. Photograph ${plan.photoGoal} species and collect both samples.`:progress.expedition.stage==='transect'?`Sail to ${plan.recoveryTitle.toLowerCase()}. Record the three stations with Scanner.`:progress.expedition.stage==='wreck'?'Sail to the wreck buoy. Release the cable and recover the research sensor.':'Return to the research harbor to sell your cargo.');
   updateHud();
+}
+
+async function buildResearchRov(){
+  if(rovBuilding||boatSwitching||adBusy||!canVisitStand())return;
+  const report=(message:string)=>{inventory.report(message);setNotice(message);};
+  try{fabricateRov(progress);}catch(error){report((error as Error).message);return;}
+  rovBuilding=true;const button=inventory.dialog.querySelector<HTMLButtonElement>('[data-fabricate-rov]');if(button){button.disabled=true;button.textContent='Preparing ROV…';}
+  try{
+    await researchRov.load();if(!canVisitStand()||boatSwitching||adBusy)return;
+    const next=fabricateRov(progress);try{saveProgress(next);}catch{report('ROV fabrication could not be saved. Your credits are unchanged. Allow storage and retry.');return;}
+    Object.assign(progress,next);report('Sentry Research ROV fabricated.');music?.playCue('purchase');renderHarbor();
+  }catch{report('ROV model could not load. No credits were spent. Retry at the outfitter.');}
+  finally{rovBuilding=false;inventory.render();updateHud();}
+}
+function reportRov(message:string){rovFeedback=message;setNotice(message);updateHud();}
+function canLaunchRov(){return playerMode==='helm'&&!!progress.rov?.owned&&(progress.rov.battery??0)>2&&Math.abs(speed)<.7&&yacht.position.distanceTo(marinaPosition)>45&&!menusOpen();}
+async function launchResearchRov(){
+  if(rovLaunching||!canLaunchRov())return;rovLaunching=true;rovFeedback='Preparing research ROV';updateHud();
+  try{
+    await researchRov.load();if(!canLaunchRov())return;
+    clearPlayerInput();cruiseActive=false;speed=0;throttleValue=0;steerValue=0;displaySpeed=0;
+    const vessel=BOAT_CATALOG[progress.activeBoat];
+    researchRov.root.position.set(vessel.beam*.65,0,vessel.length*.47+2).applyQuaternion(yacht.quaternion).add(yacht.position);
+    const surface=sampleOceanHeight(researchRov.root.position.x,researchRov.root.position.z,gameTime),bounds=rovDepthBounds(expeditionFloor(researchRov.root.position.x,researchRov.root.position.z),surface);
+    if(!bounds){reportRov('Move the vessel to deeper water before deploying the ROV.');return;}
+    researchRov.root.position.y=THREE.MathUtils.clamp(surface-2.2,bounds.min,bounds.max);
+    rovYaw=heading;rovPitch=0;rovChase=true;rovLights=true;rovSpeed=0;rovLastScan=-Infinity;rovLastManual=-Infinity;rovContacts=[];rovFeedback='';
+    researchRov.root.rotation.set(0,-rovYaw,0,'YXZ');researchRov.root.visible=true;playerMode='rov';gameRoot.dataset.playerMode='rov';
+    pulseResearchRov(false);updateHud();
+  }catch{reportRov('ROV model unavailable. Your equipment and credits are unchanged. Retry launch.');}
+  finally{rovLaunching=false;updateHud();}
+}
+function recallResearchRov(message='ROV recovered. Helm control restored.'){
+  if(playerMode!=='rov')return;clearPlayerInput();researchRov.recover();rovContacts=[];diveSonar.clear();
+  playerMode='helm';gameRoot.dataset.playerMode='helm';camera.position.copy(cameraOffsets[2]).applyQuaternion(yacht.quaternion).add(yacht.position);cameraMode=2;
+  persistExpedition();reportRov(message);
+}
+function updateResearchRov(delta:number){
+  const equipment=progress.rov??=newRovEquipment(),active=playerMode==='rov';
+  if(!active){equipment.battery=rovBatteryStep(equipment.battery,delta,{owned:equipment.owned,active:false,aboard:playerMode==='helm',moving:false,lights:false});return;}
+  rovPrevious.copy(researchRov.root.position);rovAnchor.copy(yacht.position);rovAnchor.y+=.5;
+  const move=(isDown('KeyW')||isDown('ArrowUp')?1:0)-(isDown('KeyS')||isDown('ArrowDown')?1:0);
+  const turn=(isDown('KeyD')||isDown('ArrowRight')?1:0)-(isDown('KeyA')||isDown('ArrowLeft')?1:0);
+  const vertical=(isDown('Space')?1:0)-(isDown('ControlLeft')||isDown('ControlRight')?1:0);
+  const forward=Math.abs(move)>.01?move:gamepadThrottle,rise=Math.abs(vertical)>.01?vertical:gamepadVertical;
+  rovYaw+=(Math.abs(turn)>.01?turn:gamepadSteer)*delta*1.4;
+  researchRov.root.rotation.set(rovPitch,-rovYaw,0,'YXZ');
+  tmpVectorC.set(0,0,-1).applyQuaternion(researchRov.root.quaternion);researchRov.root.position.addScaledVector(tmpVectorC,forward*RESEARCH_ROV.speed*delta);researchRov.root.position.y+=rise*2.2*delta;
+  const tetherLimit=RESEARCH_ROV.range-RESEARCH_ROV.radius;
+  const limited=constrainRovTether(researchRov.root.position,rovAnchor,tetherLimit);researchRov.root.position.set(limited.x,limited.y,limited.z);
+  researchRov.resolve(researchRov.root.position,rovPrevious);expeditionWorld.resolveDiver(researchRov.root.position,rovPrevious,RESEARCH_ROV.radius);wreckward.resolveRov(researchRov.root.position,rovPrevious);
+  arrayService.resolveDiver(researchRov.root.position,rovPrevious,RESEARCH_ROV.radius);
+  const bounds=rovDepthBounds(expeditionFloor(researchRov.root.position.x,researchRov.root.position.z),sampleOceanHeight(researchRov.root.position.x,researchRov.root.position.z,gameTime));
+  if(bounds)researchRov.root.position.y=THREE.MathUtils.clamp(researchRov.root.position.y,bounds.min,bounds.max);else researchRov.root.position.copy(rovPrevious);
+  if(researchRov.root.position.distanceTo(rovAnchor)>tetherLimit+.01)researchRov.root.position.copy(rovPrevious);
+  rovSpeed=researchRov.root.position.distanceTo(rovPrevious)/Math.max(.001,delta);
+  equipment.battery=rovBatteryStep(equipment.battery,delta,{owned:true,active:true,aboard:false,moving:Math.abs(forward)+Math.abs(rise)>.01,lights:rovLights});
+  researchRov.update(delta,rovAnchor,rovSpeed>.02,rovLights);
+  if(equipment.battery<=2){recallResearchRov('ROV reserve reached. Recovery complete; recharge aboard.');return;}
+  if(gameTime-rovLastScan>=SONAR_COOLDOWN)pulseResearchRov(false);
+}
+function pulseResearchRov(manual=true){
+  if(playerMode!=='rov'||menusOpen()||manual&&gameTime-rovLastManual<SONAR_COOLDOWN)return;
+  if(manual)rovLastManual=gameTime;
+  const p=researchRov.root.position,objective=freighterObjective(progress.expedition,wreckward.floor);
+  const extra:ScanIdentification[]=objective?[{id:`freighter-${objective.id}`,name:objective.name,kind:'Research instrument',note:'Pelagic 05 field objective',action:'Diver recovery',x:objective.x,y:objective.y,z:objective.z,distance:Math.hypot(objective.x-p.x,objective.y-p.y,objective.z-p.z),bearing:Math.atan2(objective.x-p.x,-(objective.z-p.z)),vertical:objective.y-p.y}]:[];
+  rovContacts=identifyScan(progress.expedition,p,expeditionWorld.animals,extra);rovLastScan=gameTime;diveSonar.emit(p,rovContacts,gameTime);updateHud();
+}
+function renderRovHud(){
+  const active=playerMode==='rov',equipment=progress.rov;
+  const boost=document.querySelector<HTMLButtonElement>('.touch-controls [data-hold="ShiftLeft"]');if(boost){boost.disabled=active;boost.title=active?'ROV has fixed-speed thrust':'Boost';}
+  const launch=document.querySelector<HTMLButtonElement>('[data-rov-launch]');if(launch){launch.hidden=!equipment?.owned||playerMode!=='helm';launch.disabled=rovLaunching||!canLaunchRov();launch.querySelector('span')!.textContent=rovLaunching?'Preparing ROV':(equipment?.battery??0)<=2?'ROV / recharging':'Launch ROV';}
+  const feedback=document.querySelector<HTMLElement>('[data-rov-feedback]');if(feedback){feedback.hidden=!rovFeedback;feedback.textContent=rovFeedback;}
+  if(!active)return;
+  if(modeText)modeText.textContent='ROV';if(speedText)speedText.textContent=rovSpeed.toFixed(1);const unit=document.querySelector('[data-speed-unit]');if(unit)unit.textContent='m/s';if(headingText)headingText.textContent=formatHeading(rovYaw);
+  if(modeToggle)modeToggle.textContent='Recall ROV';if(objectiveText)objectiveText.textContent='Sentry / scouting';if(npcText)npcText.textContent=`Tether ${Math.round(researchRov.root.position.distanceTo(rovAnchor))} / ${RESEARCH_ROV.range} m`;
+  const help=document.querySelector('[data-nav-help]');if(help)help.textContent=rovChase?'Sentry / external camera':'Sentry / optical camera';
+  document.querySelector('[data-rov-battery]')!.textContent=`${Math.ceil(equipment?.battery??0)}%`;
+  const meter=document.querySelector<HTMLMeterElement>('[data-rov-meter]');if(meter)meter.value=equipment?.battery??0;
+  document.querySelector('[data-rov-range]')!.textContent=`${Math.round(researchRov.root.position.distanceTo(rovAnchor))} / ${RESEARCH_ROV.range} m`;
+  document.querySelector('[data-rov-sweep]')!.textContent=`Last sweep ${Math.floor(gameTime-rovLastScan)} s / ${rovContacts.length} contacts`;
+  const light=document.querySelector('[data-rov-light]');light?.setAttribute('aria-pressed',String(rovLights));
+  const pulse=document.querySelector<HTMLButtonElement>('[data-rov-pulse]');if(pulse)pulse.disabled=gameTime-rovLastManual<SONAR_COOLDOWN;
+  if(rovRenderedContacts!==rovContacts){
+    rovRenderedContacts=rovContacts;const list=document.querySelector('[data-rov-contacts]')!;list.replaceChildren();
+    for(const contact of rovContacts){const row=document.createElement('li');const name=document.createElement('strong');name.textContent=contact.name;const detail=document.createElement('span');detail.textContent=`${contact.kind} / ${Math.round(contact.distance)} m / depth ${Math.max(0,-contact.y).toFixed(1)} m`;row.append(name,detail);list.append(row);}
+  }
 }
 
 function ensureDiveDrive():Promise<void> {
@@ -2674,6 +2775,13 @@ function updateWind(delta: number) {
 }
 
 function updateCamera(delta: number) {
+  if(playerMode==='rov'){
+    tmpQuaternion.copy(researchRov.root.quaternion);
+    tmpVectorD.set(0,rovChase?.8:.04,rovChase?3.1:-.84).applyQuaternion(tmpQuaternion).add(researchRov.root.position);
+    if(rovChase){expeditionWorld.resolveDiver(tmpVectorD,researchRov.root.position,RESEARCH_ROV.radius);wreckward.resolveRov(tmpVectorD,researchRov.root.position);}
+    tmpVectorD.y=Math.min(tmpVectorD.y,sampleOceanHeight(tmpVectorD.x,tmpVectorD.z,gameTime)-.35);
+    camera.position.copy(tmpVectorD);cameraTarget.set(0,0,-8).applyQuaternion(tmpQuaternion).add(researchRov.root.position);camera.lookAt(cameraTarget);return;
+  }
   if(playerMode==='walk'){
     const p=walker.root.position;
     cameraTarget.set(p.x+Math.sin(walkYaw)*Math.cos(walkPitch)*8,p.y+1.65+Math.sin(walkPitch)*8,p.z-Math.cos(walkYaw)*Math.cos(walkPitch)*8);
@@ -2759,7 +2867,7 @@ function updateHud() {
   const waypoint=playerMode==='helm'?waypointLocation(progress.voyage):undefined;if(waypoint&&guide)guide.textContent=`${formatHeading(bearing)} / ${Math.round(p.distanceTo(target))} m / ${waypoint.name}`;
   const help=document.querySelector<HTMLElement>('[data-nav-help]');if(help)help.textContent=playerMode==='helm'?'W/S throttle · A/D steer · Cruise assist sails toward the site':'W/S swim · Drag to look · Space/Ctrl depth · F use tool · C view';
   if(standButton)standButton.disabled=!canVisitStand();
-  if(cruiseButton){cruiseButton.disabled=walkRouting||(playerMode!=='walk'&&!waypoint&&(r.stage==='briefing'||r.stage==='complete'));cruiseButton.setAttribute('aria-pressed',String(cruiseActive));cruiseButton.textContent=walkRouting?'Planning route…':cruiseActive?'Cancel assist':playerMode==='walk'?'Walk assist':playerMode==='swim'?'Swim assist':'Cruise assist';}
+  if(cruiseButton){cruiseButton.disabled=playerMode==='rov'||walkRouting||(playerMode!=='walk'&&!waypoint&&(r.stage==='briefing'||r.stage==='complete'));cruiseButton.setAttribute('aria-pressed',String(cruiseActive));cruiseButton.textContent=walkRouting?'Planning route…':cruiseActive?'Cancel assist':playerMode==='walk'?'Walk assist':playerMode==='swim'?'Swim assist':'Cruise assist';}
   const photoAllowed=r.route==='reef'||r.stage==='reef'&&Math.hypot(swimmer.position.x-plan.site.x,swimmer.position.z-plan.site.z)<48;
   focusedSpecies=undefined;
   if(playerMode==='swim'&&selectedTool==='camera'&&photoAllowed){
@@ -2796,6 +2904,7 @@ function updateHud() {
   const driveStatus=document.querySelector<HTMLElement>('[data-scooter-status]');if(driveStatus)driveStatus.textContent=`${Math.ceil(progress.fieldEquipment?.charge??100)}%${scooterPowered?' · thrust':''}`;
   scannerPanel.update(sonarResults,p,gameTime-sonarStarted,playerMode==='swim'&&selectedTool==='scanner'&&Number.isFinite(sonarStarted),scannerAutomatic);
   gameRoot.classList.toggle('target-ready',interactionReady);
+  renderRovHud();
   if(playerMode==='walk'){
     if(objectiveText)objectiveText.textContent=`Explore the island · ${ISLAND_LANDMARKS[walkDestination].name}`;
     if(npcText)npcText.textContent='Walk the harbor, visit the counters, or follow the island trail.';
@@ -2840,6 +2949,7 @@ function updateGamepad(delta:number) {
     if(diveInspectionView){diveOrbitYaw+=lookX*delta*1.7;diveOrbitPitch=THREE.MathUtils.clamp(diveOrbitPitch-lookY*delta*1.4,-.7,.7);}
     else{swimYaw+=lookX*delta*1.7;swimPitch=THREE.MathUtils.clamp(swimPitch-lookY*delta*1.4,-1,1);}
   }
+  if(playerMode==='rov'){rovYaw+=lookX*delta*1.7;rovPitch=THREE.MathUtils.clamp(rovPitch-lookY*delta*1.4,-.9,.9);}
   if(playerMode==='walk'){walkYaw+=lookX*delta*1.7;walkPitch=THREE.MathUtils.clamp(walkPitch-lookY*delta*1.4,-.85,.85);}
   previousGamepadButtons = currentButtons;
 }
@@ -2966,6 +3076,9 @@ function createInput() {
   toolButtons.forEach(button=>button.addEventListener('click',()=>selectDiveTool(button.dataset.tool as DiveTool)));
   interactButton?.addEventListener('click',useDiveTool);
   document.querySelector('[data-scooter-toggle]')?.addEventListener('click',()=>{void toggleDiveDrive();});
+  document.querySelector('[data-rov-launch]')?.addEventListener('click',()=>{void launchResearchRov();});
+  document.querySelector('[data-rov-pulse]')?.addEventListener('click',()=>pulseResearchRov());
+  document.querySelector('[data-rov-light]')?.addEventListener('click',()=>{if(playerMode==='rov'&&!menusOpen()){rovLights=!rovLights;updateHud();}});
   document.querySelector('[data-sonar-pulse]')?.addEventListener('click',()=>{if(playerMode==='swim'&&!menusOpen()&&!transectReading)emitDiveSonar();});
   document.querySelector('[data-scan-auto]')?.addEventListener('click',()=>{if(playerMode==='swim'&&!menusOpen()){scannerAutomatic=!scannerAutomatic;updateHud();}});
   standButton?.addEventListener('click',openResearchStand);
@@ -2992,7 +3105,8 @@ function createInput() {
   renderer.domElement.addEventListener('pointermove',event=>{
     if(!pointerLook||pointerLook.id!==event.pointerId)return;
     const dx=(event.clientX-pointerLook.x)*.005,dy=(event.clientY-pointerLook.y)*.004;
-    if(playerMode==='walk'){walkRouteRequest++;walkBoardRequested=false;walkYaw+=dx;walkPitch=THREE.MathUtils.clamp(walkPitch-dy,-.85,.85);cruiseActive=false;}
+    if(playerMode==='rov'){rovYaw+=dx;rovPitch=THREE.MathUtils.clamp(rovPitch-dy,-.9,.9);}
+    else if(playerMode==='walk'){walkRouteRequest++;walkBoardRequested=false;walkYaw+=dx;walkPitch=THREE.MathUtils.clamp(walkPitch-dy,-.85,.85);cruiseActive=false;}
     else if(diveInspectionView){diveOrbitYaw+=dx;diveOrbitPitch=THREE.MathUtils.clamp(diveOrbitPitch-dy,-.7,.7);}
     else{cancelSwimAssist();swimYaw+=dx;swimPitch=THREE.MathUtils.clamp(swimPitch-dy,-1,1);}
     pointerLook.x=event.clientX;pointerLook.y=event.clientY;
@@ -3154,6 +3268,7 @@ function updateVesselReflection() {
 }
 
 function cycleCamera() {
+  if(playerMode==='rov'){rovChase=!rovChase;updateHud();return;}
   if(playerMode==='walk'){firstPersonWalk=!firstPersonWalk;walker.root.visible=!firstPersonWalk;setNotice(firstPersonWalk?'First person island view. Drag to look.':'Third person island view.');return;}
   if(playerMode==='swim'){
     if(firstPersonDive){firstPersonDive=false;diveInspectionView=false;}
@@ -3203,6 +3318,7 @@ function isDown(code: string) {
 function togglePlayerMode() {
   transectReading=undefined;
   if(menusOpen())return;
+  if(playerMode==='rov'){recallResearchRov();return;}
   if(playerMode==='walk'){
     if(walkRouting)return;
     if(canBoardFromIsland()){returnToHelm('Researcher aboard. Choose Dive to enter the water.');persistExpedition();return;}
@@ -3260,6 +3376,7 @@ function returnToHelm(message: string) {
 }
 
 function resetBoat() {
+  if(playerMode==='rov')recallResearchRov();
   if (playerMode !== 'helm') {
     returnToHelm('Diver aboard. Aurora reset to open water.');
   }

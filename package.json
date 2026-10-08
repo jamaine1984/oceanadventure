@@ -7,7 +7,7 @@
     "dev": "vite --host 0.0.0.0 --port 5174",
     "build": "tsc --noEmit && vite build",
     "verify:portal": "node scripts/verify-portal-build.mjs",
-    "test:unit": "node --test tests/unit/voyage.node.mjs tests/unit/scooter-grip.node.mjs tests/unit/walk-motion.node.mjs tests/unit/player-asset.node.mjs tests/unit/scanner.node.mjs tests/unit/story.node.mjs tests/unit/array.node.mjs tests/unit/partners.node.mjs tests/unit/wreckward.node.mjs",
+    "test:unit": "node --test tests/unit/voyage.node.mjs tests/unit/scooter-grip.node.mjs tests/unit/walk-motion.node.mjs tests/unit/player-asset.node.mjs tests/unit/scanner.node.mjs tests/unit/story.node.mjs tests/unit/array.node.mjs tests/unit/partners.node.mjs tests/unit/wreckward.node.mjs tests/unit/rov.node.mjs",
     "qa": "npm run build && npm run verify:portal && playwright test",
     "preview": "vite preview --host 0.0.0.0 --port 4174",
     "make:assets": "node scripts/run_blender.mjs",
