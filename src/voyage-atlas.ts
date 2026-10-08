@@ -2,7 +2,7 @@ import { createElement, Map, Compass, BookOpen, Download, Upload, X, Flag, Trash
 import { CONTRACTS, DISTRICTS, LANDMARKS, CLIENTS, CHART_BOUNDS, contractAvailable, districtUnlocked, nextStoryContract, contractById, type DistrictKey } from './voyage-catalog';
 import { exportProgress, readProgressImport, recoveryArchives, researchDiscount, type PlayerProgress } from './progression';
 import { waypointLocation, contractReputationReward } from './voyage-state';
-import { layoutChartMarkers } from './chart-markers';
+import { layoutChartMarkers,chartMarkerHeight } from './chart-markers';
 type AtlasView = 'chart' | 'contracts' | 'log' | 'saves';
 const glyph=(icon:IconNode)=>createElement(icon,{width:20,height:20,'aria-hidden':'true'});
 function element<K extends keyof HTMLElementTagNameMap>(tag:K,text?:string,className?:string){const node=document.createElement(tag);if(text!==undefined)node.textContent=text;if(className)node.className=className;return node;}
@@ -55,6 +55,7 @@ export class VoyageAtlas {
     for(const place of places){const personal=place.id.startsWith('pin-'),button=this.button('',()=>{if(!place.known){this.message.textContent='Sail closer to chart this landmark.';return;}const next=structuredClone(progress);next.voyage.activeWaypoint=place.id;if(this.commit(next))this.message.textContent=`Course set: ${place.name}.`;},personal?Flag:place.known?MapPin:CircleHelp);button.className='atlas__marker';button.dataset.markerKind=personal?'pin':place.known?'known':'unknown';button.dataset.chartMarker=place.id;button.title=place.known?place.name:'Uncharted landmark';button.setAttribute('aria-label',button.title);button.setAttribute('aria-pressed',String(place.id===state.activeWaypoint));markers.push({id:place.id,x:place.x,z:place.z,button});chart.append(button);}
     const draw=()=>{
       const width=chart.clientWidth,height=chart.clientHeight;if(width<44||height<44)return;
+      const capacity=chartMarkerHeight(markers.length,width),required=Math.max(240,capacity+chart.offsetHeight-chart.clientHeight);if(chart.style.minHeight!==`${required}px`)chart.style.minHeight=`${required}px`;if(height<capacity)return;
       ctx.fillStyle='#0d343e';ctx.fillRect(0,0,1000,700);ctx.lineWidth=1;ctx.strokeStyle='#244c55';
       for(let x=0;x<=1000;x+=100){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,700);ctx.stroke();}for(let y=0;y<=700;y+=100){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(1000,y);ctx.stroke();}
       for(const district of DISTRICTS){ctx.strokeStyle=district.color;ctx.fillStyle=district.color+'18';ctx.beginPath();ctx.ellipse(sx(district.x),sz(district.z),district.radius/(CHART_BOUNDS.maxX-CHART_BOUNDS.minX)*1000,district.radius/(CHART_BOUNDS.maxZ-CHART_BOUNDS.minZ)*700,0,0,Math.PI*2);ctx.fill();ctx.stroke();}

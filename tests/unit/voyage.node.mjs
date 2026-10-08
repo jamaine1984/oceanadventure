@@ -48,7 +48,7 @@ test('future and unrecoverable saves block loading instead of becoming a new voy
 });
 test('recovery never silently downgrades an unsupported newest checkpoint to an older voyage',()=>{
   const {values}=storage(),older=api.defaultProgress();older.credits=100;
-  const newer={...older,saveVersion:4,credits:1800};
+  const newer={...older,saveVersion:5,credits:1800};
   values.set('ocean-adventure-recovery-v1',JSON.stringify([api.createArchive(JSON.stringify(newer)),api.createArchive(JSON.stringify(older))]));values.set('ocean-adventure-progress-v1','corrupt');
   assert.throws(()=>api.loadProgress(),api.ProgressLoadError);assert.equal(values.get('ocean-adventure-progress-v1'),'corrupt');assert.equal(JSON.parse(api.recoveryArchives()[0].payload).credits,1800);
 });
@@ -92,6 +92,7 @@ for(const [width,height]of [[320,288],[264,238]])test(`twenty collocated chart t
   for(let i=0;i<placed.length;i++)for(let j=i+1;j<placed.length;j++)assert(Math.abs(placed[i].x-placed[j].x)>=48||Math.abs(placed[i].y-placed[j].y)>=48);
 });
 test('chart layout rejects a surface too small for usable controls',()=>assert.throws(()=>api.layoutChartMarkers([{id:'one',x:0,y:0}],30,40)));
+test('regional service markers plus twelve pins fit at compact widths without reducing touch targets',()=>{for(const width of [264,296,640]){const count=api.LANDMARKS.length+13,height=api.chartMarkerHeight(count,width),placed=api.layoutChartMarkers(Array.from({length:count},(_,i)=>({id:String(i),x:width/2,y:height/2})),width,height);assert.equal(placed.length,count);for(let i=0;i<count;i++)for(let j=i+1;j<count;j++)assert(Math.abs(placed[i].x-placed[j].x)>=48||Math.abs(placed[i].y-placed[j].y)>=48);}});
 
 test('dive drive fabrication requires the earned blueprint and credits, without mutating the source',()=>{
   const progress=api.defaultProgress();progress.credits=2000;assert.throws(()=>api.fabricateScooter(progress),/blueprint/);

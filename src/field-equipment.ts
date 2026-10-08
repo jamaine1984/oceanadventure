@@ -14,11 +14,11 @@ export function fabricateScooter<P extends {credits:number;voyage:{blueprints:st
   if(progress.credits<SCOOTER.cost)throw new Error('Not enough credits to fabricate the dive drive.');
   const next=structuredClone(progress);next.credits-=SCOOTER.cost;next.fieldEquipment={scooter:true,charge:100};return next;
 }
-export function scooterStep(equipment:FieldEquipment, delta:number, state:{aboard:boolean;enabled:boolean;forward:number;boost:boolean;depth:number;assisting:boolean}) {
+export function scooterStep(equipment:FieldEquipment, delta:number, state:{aboard:boolean;enabled:boolean;forward:number;boost:boolean;depth:number;assisting:boolean;retrofit?:boolean}) {
   const seconds=Number.isFinite(delta)?Math.max(0,Math.min(.1,delta)):0;
   if(!equipment.scooter)return {charge:equipment.charge,powered:false,multiplier:1};
   const powered=!state.aboard&&state.enabled&&equipment.charge>0&&state.forward>.05&&state.depth>.6&&!state.assisting;
-  const charge=Math.max(0,Math.min(100,equipment.charge+(state.aboard?SCOOTER.recharge:powered?-(state.boost?.75:.42):0)*seconds));
+  const charge=Math.max(0,Math.min(100,equipment.charge+(state.aboard?SCOOTER.recharge*(state.retrofit?1.5:1):powered?-(state.boost?.75:.42)*(state.retrofit?.75:1):0)*seconds));
   return {charge,powered:powered&&charge>0,multiplier:powered&&charge>0?(state.boost?SCOOTER.boostSpeed:SCOOTER.speed):1};
 }
 

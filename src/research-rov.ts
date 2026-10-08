@@ -14,7 +14,7 @@ export function fabricateRov<P extends {credits:number;saveVersion?:number;voyag
   if(progress.rov?.owned)throw Error('The research ROV is already fabricated.');
   if(!progress.voyage.completed.includes(RESEARCH_ROV.contract)||!progress.voyage.blueprints.includes(RESEARCH_ROV.blueprint))throw Error('Archive The Freighter Archive at harbor to unlock this blueprint.');
   if(!Number.isFinite(progress.credits)||progress.credits<RESEARCH_ROV.cost)throw Error('Not enough credits to fabricate the research ROV.');
-  const next=structuredClone(progress);next.credits-=RESEARCH_ROV.cost;next.saveVersion=3;next.rov={version:1,owned:true,battery:100};return next;
+  const next=structuredClone(progress);next.credits-=RESEARCH_ROV.cost;next.saveVersion=Math.max(3,progress.saveVersion??2);next.rov={version:1,owned:true,battery:100};return next;
 }
 export function rovBatteryStep(battery:number,delta:number,state:{owned:boolean;active:boolean;aboard:boolean;moving:boolean;lights:boolean}){
   const dt=Number.isFinite(delta)?Math.max(0,Math.min(.1,delta)):0;

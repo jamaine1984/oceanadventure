@@ -1,7 +1,7 @@
 import { createElement, X, Radio } from 'lucide';
 import { CLIENTS } from './voyage-catalog';
 import { nextStoryScene, sceneById, storyAvailable, type Speaker, type StoryContext, type StoryScene } from './story-state';
-const portraits:Record<Speaker,string>={mara:new URL('../assets/concepts/full-game-v1/mara-velez.png',import.meta.url).href,ivo:new URL('../assets/concepts/full-game-v1/ivo-chen.png',import.meta.url).href,selene:new URL('../assets/concepts/full-game-v1/selene-okoro.png',import.meta.url).href};
+const portraits:Record<Speaker,string>={mara:new URL('../assets/textures/story/mara-velez.webp',import.meta.url).href,ivo:new URL('../assets/textures/story/ivo-chen.webp',import.meta.url).href,selene:new URL('../assets/textures/story/selene-okoro.webp',import.meta.url).href};
 function node<K extends keyof HTMLElementTagNameMap>(tag:K,text?:string,className?:string){const result=document.createElement(tag);if(text)result.textContent=text;if(className)result.className=className;return result;}
 export class StoryDialog {
   readonly dialog=node('dialog',undefined,'story-radio');

@@ -47,6 +47,11 @@ export function contractAvailable(contract: ContractDefinition, completed: reado
 export function districtUnlocked(id: DistrictKey, completed: readonly string[]) { const district=DISTRICTS.find(item=>item.id===id);return !!district&&(!district.requires||completed.includes(district.requires)); }
 export function nextStoryContract(completed: readonly string[]) { return [...CONTRACTS].sort((a,b)=>(a.story??Infinity)-(b.story??Infinity)).find(contract=>contract.story&&!completed.includes(contract.id)&&contractAvailable(contract,completed)); }
 export const LANDMARKS = [
+  {id:'field-bay',name:'Bluewater service mooring',district:'bay' as const,x:70,z:-86,radius:20},
+  {id:'field-lagoon',name:'Seagrass service mooring',district:'lagoon' as const,x:-175,z:-88,radius:20},
+  {id:'field-passage',name:'Limestone service mooring',district:'passage' as const,x:200,z:-88,radius:20},
+  {id:'field-reach',name:'Wreckward service mooring',district:'reach' as const,x:-273,z:-145,radius:20},
+  {id:'field-pelagic',name:'Observatory service mooring',district:'pelagic' as const,x:202,z:-170,radius:20},
   {id:'observatory',name:'Pelagic Observatory',district:'pelagic' as const,x:225,z:-190,radius:25},
   {id:'freighter',name:'Pelagic 05 freighter',district:'reach' as const,x:-300,z:-170,radius:28},
   { id:'harbor',name:'Research harbor',district:'bay' as const,x:0,z:28,radius:35 },

@@ -58,6 +58,7 @@
           <button type="button" data-atlas-toggle aria-label="Open voyage atlas" title="Voyage atlas"><i data-lucide="map" aria-hidden="true"></i> Atlas</button>
           <button type="button" data-save title="Save progress"><i data-lucide="save" aria-hidden="true"></i> Save</button>
           <button type="button" data-rov-launch aria-label="Launch research ROV" title="Launch research ROV in open water below 1.4 knots" hidden><i data-lucide="camera" aria-hidden="true"></i><span>Launch ROV</span></button>
+          <button type="button" data-pod-deploy title="Deploy or pack the survey anchor at a service mooring" hidden><i data-lucide="package" aria-hidden="true"></i><span>Deploy pod</span></button>
         </div>
         <p class="action-dock__feedback" data-rov-feedback role="status" hidden></p>
       </div>
@@ -93,6 +94,11 @@
             <p data-scan-note></p><p class="sonar-contacts__action" data-scan-action></p>
           </div>
           <p data-scan-empty hidden>No contacts. Research range 65 m / wildlife range 25 m.</p>
+        </section>
+        <section class="field-work" data-field-work aria-label="Salvage and field service" hidden>
+          <label for="field-target">Field equipment</label><select id="field-target" data-field-target aria-label="Field work target"></select>
+          <div class="field-work__commands"><button type="button" data-field-approach>Approach</button><button type="button" data-field-recover>Recover supplies</button><button type="button" data-pod-service>Service equipment</button></div>
+          <small data-field-stores></small><progress data-field-reading max="2" value="0" aria-label="Supply recovery progress" hidden></progress><p data-field-feedback role="status" hidden></p>
         </section>
       </section>
       <div class="dive-reticle" aria-hidden="true"><span></span></div>

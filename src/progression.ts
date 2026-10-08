@@ -4,12 +4,14 @@ import { createArchive, parseArchive, type SaveArchive } from './save-archive';
 import { newFieldEquipment, sanitizeFieldEquipment, type FieldEquipment } from './field-equipment';
 import { newStory, sanitizeStory, type StoryState } from './story-state';
 import {sanitizeRov,type RovEquipment} from './research-rov';
+import {sanitizeSalvage,salvageUsed,SALVAGE_CACHES,FIELD_POSTS,type SalvageState} from './salvage';
 export type UpgradeKey = 'engine' | 'tank' | 'hull' | 'fins' | 'light';
 export type BoatKey = 'aurora' | 'voyager';
 export type AchievementKey = 'first_signal' | 'deep_diver' | 'storm_runner' | 'fleet_owner' | 'expedition_complete';
 
 export type PlayerProgress = {
-  saveVersion: 2|3;
+  saveVersion: 2|3|4;
+  salvage?:SalvageState;
   voyage: VoyageState;
   fieldEquipment?: FieldEquipment;
   rov?:RovEquipment;
@@ -89,13 +91,18 @@ export function loadProgress(): PlayerProgress {
 export function normalizeProgress(value: unknown): PlayerProgress {
     if(!value||typeof value!=='object'||Array.isArray(value))throw new Error('Invalid voyage data.');
     const parsed=value as Partial<PlayerProgress>;
-    if(parsed.saveVersion!==undefined&&parsed.saveVersion!==2&&parsed.saveVersion!==3)throw new ProgressLoadError('This voyage was saved by a different game version. Keep the save and update the game.');
+    if(parsed.saveVersion!==undefined&&parsed.saveVersion!==2&&parsed.saveVersion!==3&&parsed.saveVersion!==4)throw new ProgressLoadError('This voyage was saved by a different game version. Keep the save and update the game.');
     // Future schemas must block rollback even when another record is incomplete.
-    for(const [record,allowed] of [[parsed.story,[1]],[parsed.voyage,[1]],[parsed.expedition,[2,3]],[parsed.rov,[1]]] as const){
+    for(const [record,allowed] of [[parsed.story,[1]],[parsed.voyage,[1]],[parsed.expedition,[2,3]],[parsed.rov,[1]],[parsed.salvage,[1]]] as const){
       if(record?.version!==undefined&&!(allowed as readonly number[]).includes(record.version))throw new ProgressLoadError('This voyage contains an unsupported record version. Keep the save and update the game.');
     }
     if(parsed.expedition?.version===3&&typeof parsed.expedition.route==='string'&&parsed.expedition.route.trim()&&!['reef','lagoon','passage','reach','pelagic'].includes(parsed.expedition.route))throw new ProgressLoadError('This route needs a different game version. Keep the save and update the game.');
-    if(parsed.saveVersion===3&&!Object.hasOwn(parsed,'rov'))throw new Error('The current voyage is missing its equipment record.');
+    if(parsed.salvage?.version===1){
+      if(Array.isArray(parsed.salvage.recovered)&&parsed.salvage.recovered.some(id=>typeof id==='string'&&id.trim()&&!SALVAGE_CACHES.some(c=>c.id===id)))throw new ProgressLoadError('This recovery record needs a different game version. Keep the save and update the game.');
+      const site=parsed.salvage.pod?.site;if(typeof site==='string'&&site.trim()&&!FIELD_POSTS.some(s=>s.id===site))throw new ProgressLoadError('This outpost needs a different game version. Keep the save and update the game.');
+    }
+    if((parsed.saveVersion===3||parsed.saveVersion===4)&&!Object.hasOwn(parsed,'rov'))throw new Error('The current voyage is missing its equipment record.');
+    if(parsed.saveVersion===4&&(!Object.hasOwn(parsed,'salvage')||parsed.salvage===undefined))throw new Error('The current voyage is missing its salvage record.');
     if(parsed.story&&parsed.story.version===undefined)throw new Error('The story record is incomplete.');
     if(Object.hasOwn(parsed,'rov')&&(!parsed.rov||typeof parsed.rov!=='object'||Array.isArray(parsed.rov)))throw new Error('The ROV record is incomplete.');
     if(parsed.rov&&parsed.rov.version===undefined)throw new Error('The ROV record is incomplete.');
@@ -108,7 +115,7 @@ export function normalizeProgress(value: unknown): PlayerProgress {
     if(parsed.expedition?.route==='reach'&&(parsed.expedition.contractId!=='reach-archive'||!Array.isArray(parsed.expedition.interiorSteps)))throw new Error('The freighter record is incomplete.');
     if(parsed.expedition?.route==='pelagic'&&(parsed.expedition.contractId!=='pelagic-record'||!Array.isArray(parsed.expedition.observatoryRecords)))throw new Error('The observatory record is incomplete.');
     if(!Number.isFinite(parsed.credits)||parsed.credits<0||!Array.isArray(parsed.ownedBoats))throw new Error('The voyage is missing its saved balance or fleet.');
-    if(parsed.saveVersion===2||parsed.saveVersion===3){
+    if(parsed.saveVersion===2||parsed.saveVersion===3||parsed.saveVersion===4){
       const record=parsed.expedition,voyage=parsed.voyage;
       const object=(item:unknown)=>!!item&&typeof item==='object'&&!Array.isArray(item);
       const validUpgrades=object(parsed.upgrades)&&(Object.keys(UPGRADE_CATALOG)as UpgradeKey[]).every(key=>Number.isFinite(parsed.upgrades[key]));
@@ -128,13 +135,17 @@ export function normalizeProgress(value: unknown): PlayerProgress {
     const level = (key: UpgradeKey) => Math.min(UPGRADE_CATALOG[key].maxLevel, Math.max(0, Math.floor(Number(parsed.upgrades?.[key]) || 0)));
     const count = (value: unknown) => Number.isFinite(Number(value)) ? Math.min(1000000000, Math.max(0, Math.floor(Number(value)))) : 0;
     const expedition = sanitizeExpedition(parsed.expedition);
+    const salvage=sanitizeSalvage(parsed.salvage),voyage=sanitizeVoyage(parsed.voyage),equipment=sanitizeFieldEquipment(parsed.fieldEquipment,voyage.blueprints);
+    const deployed=FIELD_POSTS.find(s=>s.id===salvage.pod.site);if(deployed&&!voyage.completed.includes(deployed.requires))throw Error('The outpost record is missing its unlocked mooring.');
+    if(salvage.recovered.some(id=>!voyage.completed.includes(SALVAGE_CACHES.find(c=>c.id===id)!.requires))||salvage.pod.built&&(!voyage.completed.includes('bay-signal')||!voyage.blueprints.includes('survey-anchor'))||salvage.capacitor&&(!equipment.scooter||!voyage.completed.includes('lagoon-echo')))throw Error('The salvage record is missing its earned prerequisites.');
     const collectionPhotos: PlayerProgress['collectionPhotos'] = {};
     for (const key of ['butterflyfish', 'tang', 'anthias', 'turtle', 'ray', 'reefshark', 'hammerhead']) {
       const photo = parsed.collectionPhotos?.[key] ?? expedition.photoImages[key];
       if (typeof photo === 'string' && photo.startsWith('data:image/jpeg;base64,') && photo.length < 65000) collectionPhotos[key] = photo;
     }
     return {
-      saveVersion:parsed.saveVersion===3||parsed.rov?.owned===true?3:2,
+      saveVersion:parsed.saveVersion===4||salvageUsed(salvage)?4:parsed.saveVersion===3||parsed.rov?.owned===true?3:2,
+      salvage,
       story:sanitizeStory(parsed.story),
       voyage:sanitizeVoyage(parsed.voyage),
       fieldEquipment:sanitizeFieldEquipment(parsed.fieldEquipment,sanitizeVoyage(parsed.voyage).blueprints),

@@ -1100,6 +1100,7 @@ export class ExpeditionWorld {
     }else if(local.z>-10&&local.z<10&&local.y>-.4&&local.y<3.3&&Math.abs(local.x)<3.1){position.copy(previous);}
     position.y=Math.max(position.y,expeditionFloor(position.x,position.z)+Math.max(.8,radius));
   }
+  fieldLocationClear(x:number,z:number,margin=3.4){return this.rockBounds.every(b=>((x-b.center.x)/(b.radii.x+margin))**2+((z-b.center.z)/(b.radii.z+margin))**2>1);}
   updateSites(record:ExpeditionRecord,tool:string){
     const plan=expeditionPlan(record);
     for(const [key,root]of this.sites){

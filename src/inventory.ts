@@ -1,11 +1,12 @@
 import { createElement, Ship, Camera, Package, FlaskConical, CircleGauge, Wind, Shield, Footprints, Flashlight, X, BookOpen, BatteryCharging, type IconNode } from 'lucide';
 import { SCOOTER } from './field-equipment';
 import {RESEARCH_ROV} from './research-rov';
+import {MATERIALS,RECIPES,newSalvage,fabricateMaterials,type MaterialKey,type MaterialRecipe} from './salvage';
 import { BOAT_CATALOG, UPGRADE_CATALOG, upgradeCost, researchDiscount, type PlayerProgress, type BoatKey, type UpgradeKey } from './progression';
 import { SPECIES, expeditionPlan, expeditionReward, type SpeciesKey } from './expedition-state';
 
-type View = 'fleet' | 'equipment' | 'cargo' | 'collection';
-const views: Array<[View, string, IconNode]> = [['fleet', 'Fleet', Ship], ['equipment', 'Equipment', CircleGauge], ['cargo', 'Cargo', Package], ['collection', 'Collection', BookOpen]];
+type View = 'fleet' | 'equipment' | 'materials' | 'cargo' | 'collection';
+const views: Array<[View, string, IconNode]> = [['fleet', 'Fleet', Ship], ['equipment', 'Equipment', CircleGauge], ['materials','Materials',FlaskConical], ['cargo', 'Cargo', Package], ['collection', 'Collection', BookOpen]];
 const gearIcons: Record<UpgradeKey, IconNode> = { engine: CircleGauge, tank: Wind, hull: Shield, fins: Footprints, light: Flashlight };
 
 function icon(node: IconNode) { return createElement(node, { width: 24, height: 24, 'aria-hidden': 'true' }); }
@@ -21,7 +22,7 @@ export class Inventory {
   constructor(private getProgress: () => PlayerProgress, private canShop: () => boolean,
     private shop: (kind: 'boat' | 'upgrade', key: BoatKey | UpgradeKey) => void,
     private changed: (open: boolean) => void,
-    private fabricate: () => void = () => {},private fabricateResearchRov:()=>void=()=>{}) {
+    private fabricate: () => void = () => {},private fabricateResearchRov:()=>void=()=>{},private craftMaterial:(recipe:MaterialRecipe)=>void=()=>{}) {
     this.dialog.className = 'inventory';
     this.dialog.setAttribute('aria-labelledby', 'inventory-title');
     this.dialog.innerHTML = '<header><div><span class="hud__eyebrow">Ocean Adventure</span><h2 id="inventory-title">Expedition inventory</h2></div></header>';
@@ -56,7 +57,7 @@ export class Inventory {
 
   render() {
     const active=document.activeElement as HTMLElement|null;
-    const focusAttribute=active&&this.contents.contains(active)?['data-fabricate-scooter','data-fabricate-rov','data-inventory-upgrade','data-inventory-boat'].find(name=>active.hasAttribute(name)):undefined;
+    const focusAttribute=active&&this.contents.contains(active)?['data-fabricate-scooter','data-fabricate-rov','data-craft-material','data-inventory-upgrade','data-inventory-boat'].find(name=>active.hasAttribute(name)):undefined;
     const focusValue=focusAttribute?active!.getAttribute(focusAttribute):undefined;
     const p = this.getProgress(), r = p.expedition;
     this.balance.textContent = `${p.credits.toLocaleString()} credits`;
@@ -88,6 +89,7 @@ export class Inventory {
       row('Field research kit', 'Camera, sampler, cable cutter and scanner · Included', Camera);
       const owned=!!p.fieldEquipment?.scooter,unlocked=p.voyage.blueprints.includes(SCOOTER.blueprint);
       const drive=row(SCOOTER.name,owned?`Fabricated · ${Math.ceil(p.fieldEquipment!.charge)}% charge · Recharges aboard`:unlocked?'Blueprint acquired · Rechargeable underwater propulsion':'Blueprint: complete Echoes in the Seagrass',BatteryCharging);
+      if(p.salvage?.capacitor)drive.querySelector('small')!.textContent+=' / Capacitor: 25% less drain, 50% faster recharge';
       const craft=document.createElement('button');craft.dataset.fabricateScooter='';craft.textContent=owned?'Fabricated':unlocked?`Build · ${SCOOTER.cost} credits`:'Blueprint locked';craft.disabled=owned||!unlocked||!this.canShop()||p.credits<SCOOTER.cost;craft.onclick=this.fabricate;drive.append(craft);
       const rovOwned=!!p.rov?.owned,rovUnlocked=p.voyage.completed.includes(RESEARCH_ROV.contract);
       const rov=row(RESEARCH_ROV.name,rovOwned?`Fabricated / ${Math.ceil(p.rov!.battery)}% battery`:rovUnlocked?'Blueprint acquired / tethered camera and sonar scout':'Blueprint: archive The Freighter Archive',Camera);
@@ -99,6 +101,14 @@ export class Inventory {
         const button = document.createElement('button'); button.textContent = max ? 'Fully upgraded' : `${cost} credits`;
         button.dataset.inventoryUpgrade = key; button.disabled = max || !this.canShop() || p.credits < cost;
         button.onclick = () => this.shop('upgrade', key); article.append(button);
+      }
+    }
+    if(this.view==='materials'){
+      const state=p.salvage??newSalvage();for(const key of Object.keys(MATERIALS)as MaterialKey[])row(MATERIALS[key],`${state.stock[key]} stored / ${state.recovered.filter(id=>id.endsWith(key)).length} recovery receipts`,Package);
+      for(const key of Object.keys(RECIPES)as MaterialRecipe[]){
+        const r=RECIPES[key],detail=key==='pod'?state.pod.built?`Owned / ${state.pod.site??'Packed aboard'} / Air ${state.pod.air}/400 / Power ${state.pod.energy}/300`:'Blueprint: archive The Lost Signal / service air and field batteries':key==='capacitor'?state.capacitor?'Fitted / 25% less Manta drain, 50% faster recharge':'Requires fabricated Manta / 25% less drain, 50% faster recharge':'Packed pod only / refill 400 air and 300 power units';
+        const article=row(r.name,detail,BatteryCharging);const cost=document.createElement('small');cost.textContent=`${r.cost} credits${key==='refill'?'':` / ${r.alloy} alloy / ${r.copper} copper / ${r.cell} cartridges`}`;article.querySelector('div:nth-child(2)')!.append(cost);
+        const button=document.createElement('button');button.dataset.craftMaterial=key;button.textContent=key==='refill'?'Resupply':key==='pod'&&state.pod.built?'Fabricated':key==='capacitor'&&state.capacitor?'Fitted':'Fabricate';let reason='';try{fabricateMaterials(p,key);}catch(e){reason=(e as Error).message;}button.disabled=!!reason||!this.canShop();button.title=reason||(!this.canShop()?'Visit the harbor outfitter':'');button.onclick=()=>this.craftMaterial(key);article.append(button);
       }
     }
     if (this.view === 'cargo') {

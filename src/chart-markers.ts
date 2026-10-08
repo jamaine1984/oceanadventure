@@ -1,4 +1,5 @@
 export type ChartMarker = { id:string; x:number; y:number };
+export function chartMarkerHeight(count:number,width:number,size=44,gap=4){const columns=Math.max(1,Math.floor((width-size)/(size+gap))+1);return size+Math.max(0,Math.ceil(count/columns)-1)*(size+gap);}
 export function layoutChartMarkers(markers:readonly ChartMarker[],width:number,height:number,size=44,gap=4):ChartMarker[] {
   if(width<size||height<size)throw new Error('Chart is too small for its controls.');
   const step=size+gap,margin=size/2,slots:{x:number;y:number}[]=[];

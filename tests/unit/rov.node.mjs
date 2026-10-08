@@ -17,7 +17,7 @@ test('paid freighter completions grant the blueprint and old receipts migrate wi
 test('owned ROV saves use an explicit new schema while legacy equipment migrates safely',()=>{
   const p=api.fabricateRov(unlocked());assert.equal(p.saveVersion,3);assert.equal(api.readProgressImport(api.exportProgress(p)).saveVersion,3);
   const legacy=unlocked();assert.equal(api.normalizeProgress(legacy).saveVersion,2);legacy.rov={version:1,owned:true,battery:60};assert.equal(api.normalizeProgress(legacy).saveVersion,3);
-  assert.throws(()=>api.normalizeProgress({...p,saveVersion:4}),api.ProgressLoadError);
+  assert.throws(()=>api.normalizeProgress({...p,saveVersion:5}),api.ProgressLoadError);
   const incomplete={...p};delete incomplete.rov;assert.throws(()=>api.normalizeProgress(incomplete));
 });
 test('missing equipment cannot hide explicit future nested schemas or routes behind recovery',()=>{

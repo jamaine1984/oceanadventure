@@ -20,4 +20,8 @@ Each image is a separate single view, not a multi-view sheet. The regions and re
 
 The nine approved areas remain the complete scope: authored campaign; five playable regions; unique mission mechanics; NPC storytelling; meaningful progression; consequential environment; replay/endgame; opening experience; full release verification. This reference pass does not complete those areas. The opening/earned story radio, temporary counter NPCs, array commissioning, Wreckward Reach's enterable freighter and the Sentry ROV scout are implemented. The observatory, dedicated ROV salvage/mission mechanics, crafting/outposts, environmental schedules, endgame and measured long-campaign/device QA remain open. The wreck and ROV still need richer visual detail to approach these references.
 
-Prompts and reference inputs are recorded in [PROMPTS.md](PROMPTS.md). Do not put unused concept art into the initial runtime package. The three radio portraits are the only current runtime concept imports.
+Prompts and reference inputs are recorded in [PROMPTS.md](PROMPTS.md). Do not put unused concept art into the initial runtime package. The three radio portraits use pixel-identical, lossless WebP runtime copies in `assets/textures/story`; the original PNG references remain here.
+
+## Calypso Field Equipment
+
+[Calypso service-pod reference](calypso-service-pod.png) was generated and inspected before the October 8 salvage/crafting build. This single construction sheet shows the enamel service cabinet, anchoring shoes, guarded pressure cylinders, connector/gauge panel, winch and three distinct reclaimed-supply cases. Blender geometry, not this image, is used in gameplay. The implementation is an interpretation of the reference, not an exact replica or final AAA art. No final NPC/player assets are replaced by this equipment pass.
