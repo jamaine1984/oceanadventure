@@ -25,3 +25,7 @@ Prompts and reference inputs are recorded in [PROMPTS.md](PROMPTS.md). Do not pu
 ## Calypso Field Equipment
 
 [Calypso service-pod reference](calypso-service-pod.png) was generated and inspected before the October 8 salvage/crafting build. This single construction sheet shows the enamel service cabinet, anchoring shoes, guarded pressure cylinders, connector/gauge panel, winch and three distinct reclaimed-supply cases. Blender geometry, not this image, is used in gameplay. The implementation is an interpretation of the reference, not an exact replica or final AAA art. No final NPC/player assets are replaced by this equipment pass.
+
+## Mastery Voyages
+
+[Mastery-voyage reference](mastery-voyages.png) was generated and inspected before the October 8 endgame build. Its compact five-tab atlas, ordered stop list and saved report guide the interface. Invented place names, preview thumbnails, harbor buildings and yacht branding in the concept are not new game assets or implemented destinations. The playable itineraries use the existing five regions, service moorings, supplied player and authored boats. The concept stays outside the runtime package.

@@ -4,6 +4,8 @@ Created October 7, 2026 using the built-in image generator. These normalized bri
 
 ## Shared Direction
 
+October 8 mastery-voyage addition: create a single screenshot-style concept of the existing realistic tropical ocean/yacht game with a compact five-tab Voyage atlas. Show a three-stop Coastline Comparison and a five-region Five Waters itinerary, ordered station records and a modest begin command. Use marine-science teal indicators and restrained gold accents, not a landing page or nested decorative cards. Preserve existing player/boats. The generated image is only an interface direction; invented scenery, labels and yacht branding are not promised new assets.
+
 Premium realistic ocean-exploration game, physically plausible construction, inspectable materials and clear gameplay access. Preserve the existing ocean, supplied player and yacht silhouette. One coherent view per image, not a collage or multi-view model sheet. Avoid decorative gradients, silhouettes and unrelated fantasy objects.
 
 ## Prompt Set

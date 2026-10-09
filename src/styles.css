@@ -41,6 +41,8 @@ button:disabled { cursor: default; }
 .dive-tools,.rov-tools { position: absolute; right: 20px; bottom: 90px; width: 350px; z-index: 4; display: none; border: 1px solid #b7c7c644; border-radius: 10px; background: #092b39e8; box-shadow: 0 10px 45px #001a2844; padding: 9px; }
 [data-player-mode="swim"] .dive-tools { display: grid; gap: 10px; }
 .dive-tools__tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.dive-tools .dive-tools__tabs button { min-height:44px; }
+.dive-tools__commands [data-interact] { min-height:44px; }
 .dive-tools button,.rov-tools button, .journal button, .pause-menu button[data-rescue] { min-height: 42px; padding: 8px 10px; border: 1px solid #a8c3c345; border-radius: 6px; background: #264851; color: #edf4ef; font-size: 12px; cursor: pointer; }
 .dive-tools button[aria-pressed="true"],.rov-tools button[aria-pressed="true"] { background: #d1b778; color: #102d39; border-color: #efdaaa; }
 .dive-tools button:disabled,.rov-tools button:disabled { opacity: .45; }
@@ -1242,7 +1244,17 @@ button:focus-visible {
 .atlas button:disabled { color:#afbfbd; border-color:#486365; background:#263c41; cursor:default; }
 .atlas button[aria-pressed="true"] { background:#e4c983; color:#102b32; border-color:#f2dca7; }
 .atlas button:focus-visible,.atlas input:focus-visible { outline:3px solid #edcc80; outline-offset:2px; }
-.atlas__tabs { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; padding:10px 16px; border-bottom:1px solid #426061; }
+.atlas__tabs { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:8px; padding:10px 16px; border-bottom:1px solid #426061; }
+.atlas__voyages { display:grid; gap:20px; }
+.atlas__voyage { padding:16px 0; border-bottom:1px solid #526d70; }
+.atlas__voyage > small { color:#e4c983; }
+.atlas__voyage p { line-height:1.5; font-size:14px; color:#c6d7cf; }
+.atlas__voyage ol { padding-left:24px; }
+.atlas__voyage li { padding:10px 0; border-bottom:1px solid #354f59; }
+.atlas__voyage li small { display:block; margin-top:4px; color:#a9c6c3; }
+.atlas__voyage button { margin:4px 8px 4px 0; }
+.atlas__report { padding-left:24px; font-size:13px; line-height:1.7; }
+[data-mastery-status] { margin:6px 0 0; font-size:12px; line-height:1.5; color:#e4c983; }
 .atlas__contents { padding:20px 24px; overflow:auto; overscroll-behavior:contain; }
 .atlas__message { margin:0; padding:0 24px; color:#f0d48d; font-size:13px; line-height:1.5; }
 .atlas__message:not(:empty) { padding-top:12px; padding-bottom:4px; }

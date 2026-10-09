@@ -35,7 +35,7 @@ test('root 5 weather survives archives; legacy balances and earned equipment rem
   for(const change of [{weather:undefined},{weather:{...p.weather,elapsed:NaN}},{weather:{...p.weather,until:1249}},{weather:{...p.weather,until:1600}},{salvage:undefined},{rov:undefined}])assert.throws(()=>a.normalizeProgress({...p,...change}));
 });
 test('future root, nested version and named front block archive rollback before missing records',()=>{
-  for(const patch of [{saveVersion:6},{weather:{version:2}},{weather:{version:1,override:'cyclone'}}])assert.throws(()=>a.normalizeProgress({...current(),...patch,rov:undefined}),a.ProgressLoadError);
+  for(const patch of [{saveVersion:7},{weather:{version:2}},{weather:{version:1,override:'cyclone'}}])assert.throws(()=>a.normalizeProgress({...current(),...patch,rov:undefined}),a.ProgressLoadError);
 });
 test('salvage recovery preserves root 5 weather instead of downgrading an active voyage',()=>{
   const p=current();p.voyage=a.recordContractCompletion(p.voyage,a.contractById('bay-signal'));const c=a.SALVAGE_CACHES[0];

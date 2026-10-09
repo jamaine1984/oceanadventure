@@ -4,6 +4,12 @@ A standalone Three.js and Rapier expedition game with a Blender-authored yacht, 
 
 ## Full-Game Expansion
 
+After all six campaign payments are archived, Atlas / Voyages unlocks Coastline Comparison (three regions) and The Five Waters (five regions). These are ordered water-column surveys at the existing service moorings, not new physical terminals. Dive with the supplied character, select Scanner and acquire each four-second stable reading before sailing to the next stop. Reports retain time, sea state, measured wind and depth. Normal contracts cannot replace an active mastery voyage.
+
+Return to harbor to archive the full report: the first coastal voyage pays 900 credits and later runs 650; the first five-region voyage pays 1,500 and later runs 1,100. Each archive adds 15 Selene reputation. No payment occurs between stops, and the paid report cannot be claimed again. Repeat itineraries rotate/reverse their order. Abandoning requires returning to harbor and explicitly confirming disposal of unpaid records; other cargo/equipment remains unchanged.
+
+Mastery uses root save version 6. Older game builds refuse these saves rather than drop a voyage or its payment history. Update both computers before transferring. Autosaves and acquisition receipts retain the actual yacht position; a reload resumes aboard that vessel, not at the next unearned stop. Legacy saves keep existing campaign, weather, equipment and material records.
+
 The voyage atlas contains a discovery chart, persistent named waypoints, eighteen selectable contracts, a six-chapter campaign record, three research partners and reputation-based outfitter discounts. Contracts vary between photography, sampling, mapping, recovery, repairs, remote terminal surveys and complete surveys across the bay, lagoon, limestone passage, Wreckward Reach and Pelagic Observatory. Exploration outside contracts can follow charted waypoints.
 
 The opening expedition and earned reports use an authored radio conversation with questions and persistent decisions. Closing a report does not suppress later earned reports. Supporting harbor NPCs are temporary procedural figures permitted by the user; the existing supplied player remains unchanged. Their named slots support later model replacement.

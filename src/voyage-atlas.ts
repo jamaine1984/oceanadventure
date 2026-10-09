@@ -1,9 +1,12 @@
-import { createElement, Map, Compass, BookOpen, Download, Upload, X, Flag, Trash2, Navigation, MapPin, CircleHelp, type IconNode } from 'lucide';
+import { createElement, Map, Compass, BookOpen, Download, Upload, X, Flag, Trash2, Navigation, MapPin, CircleHelp, Route, type IconNode } from 'lucide';
+import {MASTERY_PLANS,masteryUnlocked,masteryStops,masteryReward} from './mastery-voyage';
+import {FIELD_POSTS} from './salvage';
+import {voyageLight} from './voyage-weather';
 import { CONTRACTS, DISTRICTS, LANDMARKS, CLIENTS, CHART_BOUNDS, contractAvailable, districtUnlocked, nextStoryContract, contractById, type DistrictKey } from './voyage-catalog';
 import { exportProgress, readProgressImport, recoveryArchives, researchDiscount, type PlayerProgress } from './progression';
 import { waypointLocation, contractReputationReward } from './voyage-state';
 import { layoutChartMarkers,chartMarkerHeight } from './chart-markers';
-type AtlasView = 'chart' | 'contracts' | 'log' | 'saves';
+type AtlasView = 'chart' | 'contracts' | 'voyages' | 'log' | 'saves';
 const glyph=(icon:IconNode)=>createElement(icon,{width:20,height:20,'aria-hidden':'true'});
 function element<K extends keyof HTMLElementTagNameMap>(tag:K,text?:string,className?:string){const node=document.createElement(tag);if(text!==undefined)node.textContent=text;if(className)node.className=className;return node;}
 export class VoyageAtlas {
@@ -18,12 +21,12 @@ export class VoyageAtlas {
   constructor(private getProgress:()=>PlayerProgress,private position:()=>{x:number;z:number;yaw?:number},
     private canDepart:()=>boolean,private depart:(id:string)=>Promise<boolean>,
     private update:(next:PlayerProgress)=>boolean,private restore:(next:PlayerProgress)=>boolean,
-    private changed:(open:boolean)=>void) {
+    private changed:(open:boolean)=>void,private masteryAction:(action:'start'|'claim'|'abandon',id?:string)=>boolean) {
     this.dialog.className='atlas';this.dialog.setAttribute('aria-labelledby','atlas-title');
     const header=element('header'),title=element('div');title.append(element('span','Ocean Adventure','hud__eyebrow'),element('h2','Voyage atlas'));title.querySelector('h2')!.id='atlas-title';
     const close=element('button');close.type='button';close.title='Close voyage atlas';close.setAttribute('aria-label','Close voyage atlas');close.append(glyph(X));close.onclick=()=>this.dialog.close();header.append(title,close);
     const nav=element('nav',undefined,'atlas__tabs');nav.setAttribute('aria-label','Voyage atlas views');
-    for(const [id,label,icon] of [['chart','Chart',Map],['contracts','Contracts',Compass],['log','Campaign',BookOpen],['saves','Saves',Download]] as const){const button=element('button');button.type='button';button.dataset.atlasView=id;button.append(glyph(icon),document.createTextNode(label));button.onclick=()=>{this.view=id;this.render();this.contents.scrollTop=0;};nav.append(button);}
+    for(const [id,label,icon] of [['chart','Chart',Map],['contracts','Contracts',Compass],['voyages','Voyages',Route],['log','Campaign',BookOpen],['saves','Saves',Download]] as const){const button=element('button');button.type='button';button.dataset.atlasView=id;button.append(glyph(icon),document.createTextNode(label));button.onclick=()=>{this.view=id;this.render();this.contents.scrollTop=0;};nav.append(button);}
     this.message.setAttribute('role','status');this.dialog.append(header,nav,this.message,this.contents);document.querySelector('#game-root')!.append(this.dialog);
     this.dialog.addEventListener('cancel',event=>{if(this.busy)event.preventDefault();});
     this.dialog.addEventListener('close',()=>{
@@ -39,7 +42,7 @@ export class VoyageAtlas {
     this.chartObserver?.disconnect();
     this.dialog.querySelectorAll<HTMLButtonElement>('[data-atlas-view]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.atlasView===this.view)));
     this.contents.replaceChildren();
-    if(this.view==='chart')this.renderChart();else if(this.view==='contracts')this.renderContracts();else if(this.view==='log')this.renderLog();else this.renderSaves();
+    if(this.view==='chart')this.renderChart();else if(this.view==='contracts')this.renderContracts();else if(this.view==='voyages')this.renderVoyages();else if(this.view==='log')this.renderLog();else this.renderSaves();
   }
   private commit(next:PlayerProgress){if(!this.update(next)){this.message.textContent='The change could not be saved. Your previous voyage is unchanged.';return false;}this.message.textContent='Voyage updated.';this.render();return true;}
   private renderChart(){
@@ -89,12 +92,30 @@ export class VoyageAtlas {
       const completed=state.completions[contract.id]??0,active=progress.expedition.contractId===contract.id&&!progress.expedition.sold,available=contractAvailable(contract,state.completed);
       const action=this.button(active?'Active expedition':!available?'Locked':completed?`Repeat / ${completed} completed`:'Accept contract',()=>{void this.accept(contract.id);},Compass);action.dataset.acceptContract=contract.id;
       if(contract.remote&&!progress.rov?.owned)action.textContent='Sentry ROV required';
-      action.disabled=this.busy||active||!available||!!contract.remote&&!progress.rov?.owned||!this.canDepart()||!progress.expedition.sold&&progress.expedition.stage!=='briefing';
+      action.disabled=this.busy||!!progress.mastery?.active||active||!available||!!contract.remote&&!progress.rov?.owned||!this.canDepart()||!progress.expedition.sold&&progress.expedition.stage!=='briefing';
       article.append(action);list.append(article);
     }
     this.contents.append(list);if(!this.canDepart())this.contents.append(element('p','Contracts can be accepted at the research harbor.','atlas__locked'));else if(!progress.expedition.sold&&progress.expedition.stage!=='briefing')this.contents.append(element('p','Finish and sell your active expedition before accepting another.','atlas__locked'));
   }
   private async accept(id:string){if(this.busy)return;this.busy=true;this.render();try{if(await this.depart(id))this.dialog.close();else this.message.textContent='Departure could not be saved. Your current expedition is unchanged.';}finally{this.busy=false;if(this.open)this.render();}}
+  private renderVoyages(){
+    const progress=this.getProgress(),state=progress.mastery,active=state?.active,unlocked=masteryUnlocked(progress.voyage.completed);
+    this.contents.append(element('h3','Mastery voyages'),element('p',unlocked?'Selene: The network is restored. Compare its water columns in one expedition, then bring the full report home.':'Archive all six campaign chapters to unlock multi-region research voyages.','atlas__description'));
+    const runAction=(action:'start'|'claim'|'abandon',id?:string)=>{if(this.masteryAction(action,id)){this.message.textContent=action==='claim'?'Research report archived. Payment and reputation saved.':action==='abandon'?'Unpaid field records discarded. Your other research is unchanged.':'Voyage accepted. The first water column is on your heading guide.';if(action==='start')this.dialog.close();else{this.render();this.dialog.querySelector<HTMLButtonElement>('[data-atlas-view="voyages"]')!.focus();}}else this.message.textContent='Could not save this change. Your voyage and credits are unchanged. Return to the research harbor and retry.';};
+    const list=element('div',undefined,'atlas__voyages');
+    for(const plan of MASTERY_PLANS){
+      const selected=active?.id===plan.id,run=selected?active.run:(state?.counts[plan.id]??0)+1,order=masteryStops(plan.id,run),article=element('article',undefined,'atlas__voyage');
+      article.append(element('small',selected?`Active / ${active.readings.length}/${order.length} station records`:`${state?.counts[plan.id]??0} archived voyages`),element('h3',plan.title),element('p',plan.description));
+      const stops=element('ol');for(const [index,id]of order.entries()){const name=FIELD_POSTS.find(s=>s.id===id)!.name,entry=element('li');entry.append(element('span',name),element('small',selected&&index<active.readings.length?`${voyageLight(active.readings[index].elapsed).clock} / ${active.readings[index].weather} / ${active.readings[index].wind.toFixed(0)} kt / ${active.readings[index].depth.toFixed(1)} m`:selected&&index===active.readings.length?'Next water column':'Pending'));stops.append(entry);}article.append(stops,element('p',`${masteryReward(plan.id,run)} credits on return / +15 Selene reputation`,'atlas__description'));
+      if(selected){const ready=active.readings.length===order.length,claim=this.button(ready?'Archive report and receive payment':'Station records incomplete',()=>runAction('claim'),BookOpen);claim.dataset.masteryClaim='';claim.disabled=!ready||!this.canDepart();article.append(claim);
+        const cancel=this.button('Abandon unpaid voyage',()=>{this.message.replaceChildren(document.createTextNode('Discard this voyage\'s unpaid station records? '),this.button('Keep voyage',()=>{this.message.textContent='';}),this.button('Discard field records',()=>runAction('abandon'),Trash2));},X);cancel.dataset.masteryAbandon='';cancel.disabled=!this.canDepart();article.append(cancel);
+      }else{const begin=this.button('Begin voyage',()=>runAction('start',plan.id),Route);begin.dataset.masteryStart=plan.id;begin.disabled=!unlocked||!!active||!this.canDepart()||!progress.expedition.sold&&progress.expedition.stage!=='briefing';article.append(begin);}
+      list.append(article);
+    }
+    this.contents.append(list);
+    if(state?.last){const last=state.last;this.contents.append(element('h3','Last archived report'),element('p',`${MASTERY_PLANS.find(p=>p.id===last.id)!.title} / Voyage ${last.run} / ${last.reward} credits received`,'atlas__description'));
+      const records=element('ol',undefined,'atlas__report');for(const record of last.readings){const row=element('li');row.textContent=`${FIELD_POSTS.find(p=>p.id===record.stop)!.name} / ${voyageLight(record.elapsed).clock} / ${record.weather} / ${record.wind.toFixed(0)} kt / ${record.depth.toFixed(1)} m`;records.append(row);}this.contents.append(records);}
+  }
   private renderLog(){
     const state=this.getProgress().voyage,story=CONTRACTS.filter(contract=>contract.story).sort((a,b)=>a.story-b.story),next=nextStoryContract(state.completed);
     this.contents.append(element('h3','The Silent Array'),element('p',next?`Next chapter: ${next.title}`:'Campaign complete. Follow-up contracts remain available.','atlas__description'));
