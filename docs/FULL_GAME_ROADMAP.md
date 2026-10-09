@@ -8,6 +8,8 @@ No feature is complete merely because it has a menu, a catalog entry or a passin
 
 ## Approved Scope
 
+October 9 verification: the full existing 42-case browser suite passed in one uninterrupted 20.8-minute run after two stale vault-fixture events were updated to click. All 158 Node checks, build and package checks also pass. See [the current critic record](CURRENT_CRITIC_AND_CRATESHIP_PLAN.md#october-9-full-existing-regression-gate) for evidence and limits. This closes the pending existing-suite rerun, not the remaining fresh-save six-chapter, sustained/device, human retention, hosted/embed or rights gates. No runtime feature or visual score changed; ads stay deferred and production remains HOLD.
+
 | Recommendation | Implementation status |
 | --- | --- |
 | Five distinct ocean regions | Bay, lagoon and passage retained; Wreckward Reach and Pelagic Observatory have authored playable missions; full regional polish and release QA pending |

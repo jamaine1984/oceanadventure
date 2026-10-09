@@ -29,7 +29,7 @@ for(const [side,vesselZ,fins] of [['south',-137,0],['north',-145,3]] as const) {
           const frame=JSON.parse(document.querySelector<HTMLElement>('#game-root')!.dataset.renderProfile!);
           if(frame.position[2]<=vesselZ) {
             window.dispatchEvent(new KeyboardEvent('keyup',{key:'w',code:'KeyW',bubbles:true}));
-            document.querySelector('[data-mode-toggle]')!.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,cancelable:true,pointerType:'mouse',button:0}));
+            document.querySelector('[data-mode-toggle]')!.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true,button:0}));
             resolve();
           } else if(performance.now()-start>30000)reject(new Error('Manual sailing did not reach the vault'));
           else requestAnimationFrame(sail);
@@ -71,7 +71,7 @@ for(const [side,vesselZ,fins] of [['south',-137,0],['north',-145,3]] as const) {
           if(!retry&&(side==='north'?frame.position[2]>=-151.8:frame.position[2]<=-129.2)) {
             retry=frame.position;
             window.dispatchEvent(new KeyboardEvent('keyup',{key:'w',code:'KeyW',bubbles:true}));
-            document.querySelector<HTMLButtonElement>('[data-mode-toggle]')!.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,cancelable:true,pointerType:'mouse',button:0}));
+            document.querySelector<HTMLButtonElement>('[data-mode-toggle]')!.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true,button:0}));
           }
           if(retry&&frame.frame!==last){points.push(frame.position);last=frame.frame;}
           if(retry&&root.dataset.playerMode==='helm')resolve();

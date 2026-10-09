@@ -1,5 +1,9 @@
 # Ocean Adventure AAA Gauntlet
 
+## Historical Report - Superseded
+
+This August report is retained as development history, not current release certification. Its multi-judge scores, AAA verdict, device/performance claims and package measurements do not establish readiness for the expanded game. The user now requires one retained read-only critic. Use [Current Critic and CrateShip Plan](CURRENT_CRITIC_AND_CRATESHIP_PLAN.md) and [Full Game Roadmap](FULL_GAME_ROADMAP.md) for the active gates: sampled visuals 7.6/10, gameplay provisional, production HOLD. Ads remain deferred. Passing automated checks does not close human campaign, sustained performance, physical-device, hosted/embed or asset-rights gates.
+
 ## Product bar
 
 Ocean Adventure targets premium browser-game quality: immediate play, excellent vehicle and swimming feel, high-end ocean presentation, a complete progression loop, and reliable desktop/mobile delivery.
