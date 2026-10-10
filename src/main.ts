@@ -1,4 +1,5 @@
 import './styles.css';
+import {resolutionStep} from './adaptive-resolution';
 
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
@@ -433,6 +434,7 @@ class OceanMusic {
   private sequenceTimer = 0;
   private step = 0;
   private muted = false;
+  private dialogueDucked = false;
   private readonly notes = [196, 246.94, 293.66, 329.63, 392, 493.88, 587.33, 659.25];
 
   constructor() {
@@ -470,7 +472,7 @@ class OceanMusic {
 
   toggleMuted() {
     this.muted = !this.muted;
-    const target = this.muted ? 0.0001 : 0.2;
+    const target = this.muted ? 0.0001 : this.dialogueDucked ? 0.045 : 0.2;
     this.master.gain.cancelScheduledValues(this.context.currentTime);
     this.master.gain.linearRampToValueAtTime(target, this.context.currentTime + 0.25);
     return !this.muted;
@@ -482,8 +484,10 @@ class OceanMusic {
 
   setMuted(muted: boolean) {
     this.muted = muted;
-    this.master.gain.setTargetAtTime(muted ? 0 : 0.72, this.context.currentTime, 0.08);
+    this.master.gain.setTargetAtTime(muted ? 0 : this.dialogueDucked ? 0.045 : 0.2, this.context.currentTime, 0.08);
   }
+
+  setDialogueDucking(talking:boolean){this.dialogueDucked=talking;this.master.gain.cancelScheduledValues(this.context.currentTime);this.master.gain.setTargetAtTime(this.muted?0:talking ? .045 : .2,this.context.currentTime,.15);}
 
   setEnvironment(submerged: boolean, stormAmount: number) {
     const now = this.context.currentTime;
@@ -631,7 +635,7 @@ async function initialize() {
     open=>{clearPlayerInput();resetFrameClock();if(open)platform.gameplayStop();else resumePlatformIfPlaying();},masteryAction);
   createIcons({ icons: { Package, Ellipsis, Pause, Camera, Save, Map:MapIcon, Compass, Power, Radar, Radio, CloudSun, X } }); createInput();
   researchPartners=new ResearchPartners(scene,expeditionWorld.walking.height.bind(expeditionWorld.walking));
-  storyDialog=new StoryDialog(()=>progress,finishConversation,open=>{clearPlayerInput();resetFrameClock();if(open)platform.gameplayStop();else resumePlatformIfPlaying();});
+  storyDialog=new StoryDialog(()=>progress,finishConversation,open=>{clearPlayerInput();resetFrameClock();if(open)platform.gameplayStop();else resumePlatformIfPlaying();},talking=>music?.setDialogueDucking(talking));
   arrayService=new ArrayService(scene,expeditionFloor(190,-156),finishArrayRepair,open=>{clearPlayerInput();resetFrameClock();if(open)platform.gameplayStop();else resumePlatformIfPlaying();});
   wreckward=new WreckwardWorld(scene,expeditionFloor(REACH_SITE.x,REACH_SITE.z));
   observatory=new PelagicWorld(scene,expeditionFloor(PELAGIC_SITE.x,PELAGIC_SITE.z),expeditionWorld.marineMetalTexture);
@@ -3219,12 +3223,13 @@ function updateGamepad(delta:number) {
   previousGamepadButtons = currentButtons;
 }
 
+let qualityHealthySamples=0;
 function updateAdaptiveQuality() {
   if (manualQuality) return;
   if (gameTime < qualityCheckAt) return;
   qualityCheckAt = gameTime + 4;
-  const lowTarget = matchMedia('(max-width: 760px)').matches ? 32 : 48;
-  const nextScale = measuredFps < lowTarget ? Math.max(0.52, renderScale - 0.06) : measuredFps > 57 ? Math.min(maxRenderPixelRatio, renderScale + 0.03) : renderScale;
+  const result=resolutionStep(renderScale,measuredFps,maxRenderPixelRatio,matchMedia('(max-width: 760px)').matches,qualityHealthySamples);
+  qualityHealthySamples=result.healthy;const nextScale=result.scale;
   if (Math.abs(nextScale - renderScale) < 0.001) return;
   renderScale = nextScale;
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, renderScale));
@@ -3489,6 +3494,7 @@ function readGraphicsMode():GraphicsMode{
 }
 function resetFrameClock(){lastFrameTime=performance.now()*.001;fpsAccumulator=0;fpsFrames=0;}
 function applyGraphicsMode(quality:GraphicsMode){
+  qualityHealthySamples=0;
   manualQuality = quality !== 'balanced';
   renderScale = quality === 'performance' ? 0.65 : quality === 'quality' ? Math.min(1.0, window.devicePixelRatio) : maxRenderPixelRatio;
   resize();

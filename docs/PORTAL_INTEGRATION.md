@@ -2,6 +2,8 @@
 
 Ocean Adventure routes distributor behavior through `src/platform.ts`. Gameplay code does not call vendor globals directly.
 
+Current release state: ads remain deferred and no publisher/network is configured in the verified build. The adapter instructions below describe retained integration code, not permission to enable monetization. Browser provider tests use mocks only. Live ad/audio interruption and public-host acceptance require a separate authorized integration pass.
+
 ## Standalone
 
 - Default for localhost, Cloudflare, and independent hosting.

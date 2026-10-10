@@ -334,6 +334,8 @@ button:focus-visible {
 .story-radio button:focus-visible { outline:3px solid #edcc80;outline-offset:2px; }
 .story-radio button:disabled { opacity:.5;cursor:default; }
 .story-radio header button { display:grid;place-items:center;width:44px;padding:8px; }
+.story-radio__audio { display:flex;gap:6px;flex-shrink:0; }
+.story-radio__voice-status { display:block;padding:0 14px 8px;color:#c3d8d8;font-size:12px; }
 .story-radio nav { display:flex;gap:6px;padding:10px 14px; }
 .story-radio nav button { flex:1; }
 .story-radio nav [aria-pressed=true] { color:#15303a;background:#dfc588; }

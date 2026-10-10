@@ -1,5 +1,7 @@
 # Ocean Adventure
 
+Character radio scenes and replies now support browser-native spoken dialogue, with subtitles, separate voice mute/replay controls and music ducking. Music keeps its existing on/off control. Voice quality depends on the installed/browser voice pack; generated recordings await HeyGen reconnection. Balanced now favors approximately 60 desktop FPS through slower, hysteretic adaptive resolution. See [the measured Balanced/audio report](docs/BALANCED_VOICE_2026-10-09.md) for results and limits. Ads remain deferred.
+
 A standalone Three.js and Rapier expedition game with a Blender-authored yacht, helm controls, underwater exploration, procedural music, and live sea and weather states.
 
 ## Full-Game Expansion
